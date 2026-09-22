@@ -64,8 +64,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: './desktop_manager'
-          tagName: ${{ github.ref_name }}
-          releaseName: 'OpenKey Desktop Companion ${{ github.ref_name }}'
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.2' }}
+          releaseName: 'OpenKey Desktop Companion ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.2' }}'
           releaseBody: |
             ## OpenKey Hardware Security Key Manager
             Official cross-platform release for Windows, macOS, and Linux.
@@ -76,3 +76,13 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload Build Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkey-${{ matrix.platform }}
+          path: |
+            desktop_manager/src-tauri/target/release/bundle/*/*
+            desktop_manager/src-tauri/target/release/*.exe
+
