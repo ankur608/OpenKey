@@ -29,9 +29,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
-          cache-dependency-path: desktop_manager/package.json
+          cache-dependency-path: desktop_manager/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -39,9 +39,9 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: 'desktop_manager/src-tauri -> target'
+          workspaces: desktop_manager/src-tauri
 
-      # Linux system dependencies for WebKitGTK and HIDAPI
+      # Linux system dependencies for WebKitGTK, FUSE, and HIDAPI
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -57,11 +57,13 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libudev-dev \
-            libhidapi-dev
+            libhidapi-dev \
+            libfuse2 \
+            pkg-config
 
       - name: Install NPM dependencies
         working-directory: desktop_manager
-        run: npm install
+        run: npm ci
 
       - name: Build Tauri Desktop Companion
         uses: tauri-apps/tauri-action@v0
