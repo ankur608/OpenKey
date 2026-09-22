@@ -1,5 +1,6 @@
 # OpenKey - FIDO2 / WebAuthn Hardware Security Key
 <img width="1867" height="442" alt="image" src="https://github.com/user-attachments/assets/60ff640d-fe35-4ebf-a18d-a02e482c1a07" />
+
 Open-source FIDO2 / WebAuthn hardware authenticator and companion application. It delivers enterprise-grade passwordless authentication, hardware-enforced encryption, anti-tracking pseudonymity, and cryptographic duress countermeasures.
 
 Present version supports the **ESP32-S3** platform, more to be added soon..
