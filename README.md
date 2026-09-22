@@ -1,13 +1,17 @@
-# OpenKey — FIDO2 / WebAuthn Hardware Security Key & Companion App
+# OpenKey - FIDO2 / WebAuthn Hardware Security Key
+<img width="1867" height="442" alt="image" src="https://github.com/user-attachments/assets/60ff640d-fe35-4ebf-a18d-a02e482c1a07" />
+Open-source FIDO2 / WebAuthn hardware authenticator and companion application. It delivers enterprise-grade passwordless authentication, hardware-enforced encryption, anti-tracking pseudonymity, and cryptographic duress countermeasures.
 
-OpenKey is an open-source FIDO2 / WebAuthn hardware authenticator and companion application. Engineered for the **Waveshare ESP32-S3-Zero** micro-controller, it delivers enterprise-grade passwordless authentication, hardware-enforced encryption, anti-tracking pseudonymity, and cryptographic duress countermeasures.
+Present version supports the **ESP32-S3** platform, more to be added soon..
+
+<img width="1897" height="857" alt="image" src="https://github.com/user-attachments/assets/efdd2fc2-e56d-4b5f-bd74-6def515ec3df" />
 
 ---
 
 ## Architecture Overview
 
 ### 1. Hardware Security Engine (`firmware/`)
-- **Micro-controller**: Espressif ESP32-S3-Zero (Xtensa Dual-Core LX7 @ 240MHz).
+- **Micro-controller**: Espressif ESP32-S3 (Xtensa Dual-Core LX7 @ 240MHz).
 - **Cryptographic Protocols**: FIDO2 (CTAP 2.0 / 2.1), U2F (CTAP 1), WebAuthn Level 3.
 - **Algorithms**: ES256 (ECDSA P-256 with SHA-256), Ed25519 (COSE -8), RS256.
 - **Hardware Security Enforcements**:
@@ -20,11 +24,13 @@ OpenKey is an open-source FIDO2 / WebAuthn hardware authenticator and companion 
   - **Stealth / FIDO MDS Attestation Profiles**: Dynamic AAGUID profile switching.
 
 ### 2. Desktop Companion App (`desktop_manager/`)
-- **Framework**: Tauri v1.5 + Rust backend with glassmorphic UI.
+<img width="1915" height="865" alt="image" src="https://github.com/user-attachments/assets/8f364d1b-4b8e-48dc-ba7e-d0ef7e1e4ff1" />
+
+- **Framework**: Tauri v1.5 + Rust backend.
 - **Cross-Platform**: Native standalone binaries for **Windows** (`.exe`, `.msi`), **macOS** (`.dmg`, `.app`), and **Linux** (`.AppImage`, `.deb`).
 - **Features**:
   - Real-time hardware telemetry and resident key inventory gauge.
-  - Device identification toggle (visual NeoPixel locating).
+  - Device identification toggle (WS2812B).
   - Device PIN and Duress PIN management.
   - BIP-39 deterministic seed backup & restore.
   - FIDO MDS (Metadata Service) attestation and specification inspection.
