@@ -15,11 +15,11 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            args: ''
+            args: '--bundles msi'
           - platform: 'macos-latest'
-            args: ''
+            args: '--bundles dmg'
           - platform: 'ubuntu-22.04'
-            args: ''
+            args: '--bundles appimage,deb'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -30,16 +30,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
-          cache-dependency-path: desktop_manager/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: desktop_manager/src-tauri
 
       # Linux system dependencies for WebKitGTK, FUSE, and HIDAPI
       - name: Install Linux dependencies
