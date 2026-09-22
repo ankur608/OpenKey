@@ -38,22 +38,58 @@ Present version supports the **ESP32-S3** platform, more to be added soon..
 
 ---
 
-## Multi-OS Builds & Releases
+## 📦 Releases & Downloads
 
-The project includes an automated GitHub Actions CI/CD matrix ([`.github/workflows/release-companion.yml`](.github/workflows/release-companion.yml)) that compiles native binaries for Windows, macOS, and Linux upon pushing a version tag:
+Precompiled native packages and standalone binaries are available for **Windows**, **macOS**, and **Linux** under [GitHub Releases](https://github.com/ankur608/OpenKey/releases).
+
+| Operating System | Package Type | Architecture | Direct Download |
+| :--- | :--- | :--- | :--- |
+| **Windows** | Native Installer (`.msi`) | x64 | [⬇️ **Download `OpenKey.Manager.msi`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/OpenKey.Manager_1.0.0_x64_en-US.msi) |
+| **macOS** | Disk Image (`.dmg`) | Apple Silicon | [⬇️ **Download `OpenKey.Manager.dmg`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/OpenKey.Manager_1.0.0_aarch64.dmg) |
+| **Linux** | Universal Binary (`.AppImage`) | x64 / amd64 | [⬇️ **Download `open-key-manager.AppImage`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/open-key-manager_1.0.0_amd64.AppImage) |
+| **Linux** | Debian / Ubuntu (`.deb`) | x64 / amd64 | [⬇️ **Download `open-key-manager.deb`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/open-key-manager_1.0.0_amd64.deb) |
+
+> [!TIP]
+> You can also download raw standalone packages (including standalone `.exe` and `.app` bundles) directly from the [GitHub Actions Artifacts](https://github.com/ankur608/OpenKey/actions/runs/35674972353).
+
+### Quick Install Guide
+
+#### Windows
+Download and run the `.msi` installer. OpenKey Manager will be added to your Start Menu and Desktop.
+
+#### macOS
+Open the `.dmg` file and drag `OpenKey Manager` into `/Applications`.  
+*(On first launch, if prompted by macOS Gatekeeper, right-click the app in Finder and choose **Open**, or allow via **System Settings -> Privacy & Security**).*
+
+#### Linux
+- **AppImage**: Make executable and run:
+  ```bash
+  chmod +x open-key-manager_1.0.0_amd64.AppImage
+  ./open-key-manager_1.0.0_amd64.AppImage
+  ```
+- **Debian / Ubuntu**: Install with dpkg:
+  ```bash
+  sudo dpkg -i open-key-manager_1.0.0_amd64.deb
+  ```
+
+---
+
+## 🛠️ Multi-OS Builds & CI/CD
+
+Automated multi-platform builds are handled via GitHub Actions matrix workflow ([`.github/workflows/release-companion.yml`](.github/workflows/release-companion.yml)). Pushing any version tag automatically compiles and publishes assets across all three platforms:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.3
+git push origin v1.0.3
 ```
 
 ### Local Compilation (Windows)
-Run the turnkey script:
+To build the desktop manager locally on Windows:
 ```cmd
 desktop_manager\build_release_windows.bat
 ```
 
-For macOS and Linux instructions, see [PACKAGING_GUIDE.md](desktop_manager/PACKAGING_GUIDE.md).
+For macOS and Linux developer build instructions, see [PACKAGING_GUIDE.md](desktop_manager/PACKAGING_GUIDE.md).
 
 ---
 
