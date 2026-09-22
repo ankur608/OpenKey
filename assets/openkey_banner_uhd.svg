@@ -1,0 +1,107 @@
+<svg width="3840" height="960" viewBox="0 0 3840 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800;900&amp;display=swap');
+      .title-navy {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 186px;
+        font-weight: 800;
+        letter-spacing: -0.038em;
+        fill: #091E36;
+      }
+      .title-engine {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 186px;
+        font-weight: 800;
+        letter-spacing: -0.038em;
+        fill: url(#engineGrad);
+      }
+      .badge-os {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 48px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        fill: #0E6245;
+      }
+      .badge-fido {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 48px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        fill: #FFFFFF;
+      }
+    </style>
+    
+    <!-- Radiant Atmospheric Glow -->
+    <radialGradient id="bgGlowTR" cx="90%" cy="10%" r="70%">
+      <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.14"/>
+      <stop offset="45%" stop-color="#10B981" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    
+    <radialGradient id="bgGlowBL" cx="10%" cy="90%" r="75%">
+      <stop offset="0%" stop-color="#0284C7" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- FIDO 2 Badge Gradient -->
+    <linearGradient id="fidoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#017EB8"/>
+      <stop offset="50%" stop-color="#0099A8"/>
+      <stop offset="100%" stop-color="#00B37E"/>
+    </linearGradient>
+
+    <!-- Engine Title Gradient -->
+    <linearGradient id="engineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00629B"/>
+      <stop offset="100%" stop-color="#027BBB"/>
+    </linearGradient>
+
+    <clipPath id="fidoCapsuleClip">
+      <rect x="590" y="240" width="292" height="98" rx="49"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="3840" height="960" fill="#FFFFFF"/>
+  <rect width="3840" height="960" fill="url(#bgGlowTR)"/>
+  <rect width="3840" height="960" fill="url(#bgGlowBL)"/>
+
+  <!-- High-Tech Circuit Traces -->
+  <g stroke="#0EA5E9" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.32">
+    <path d="M3840 130 L3250 130 L2950 240 L2500 240 L2300 340 L1950 340" />
+    <path d="M3840 175 L3350 175 L3080 280 L2650 280 L2480 365 L2200 365" stroke="#10B981" />
+    <path d="M3840 235 L3450 235 L3200 340 L2800 340 L2600 450 L2250 450" />
+    <path d="M3840 590 L3400 590 L3180 480 L2750 480 L2580 395" />
+    <path d="M3840 710 L3550 710 L3300 600 L2900 600 L2750 515 L2400 515" stroke="#10B981" />
+    <path d="M3840 800 L3500 800 L3240 680 L2850 680" />
+  </g>
+  <g fill="#10B981" opacity="0.65">
+    <circle cx="1950" cy="340" r="11" />
+    <circle cx="2580" cy="395" r="11" />
+    <circle cx="2850" cy="680" r="10" />
+  </g>
+  <g fill="#0EA5E9" opacity="0.65">
+    <circle cx="2200" cy="365" r="10" />
+    <circle cx="2250" cy="450" r="10" />
+    <circle cx="2400" cy="515" r="10" />
+  </g>
+
+  <!-- BADGE 1: Open Source Pill -->
+  <rect x="180" y="240" width="362" height="98" rx="49" fill="#D7F4E3" stroke="#82DEAA" stroke-width="4"/>
+  <text x="234" y="306" class="badge-os">Open Source</text>
+
+  <!-- BADGE 2: FIDO 2 Capsule Pill -->
+  <g clip-path="url(#fidoCapsuleClip)">
+    <rect x="590" y="240" width="176" height="98" fill="#0D1322"/>
+    <rect x="766" y="240" width="116" height="98" fill="url(#fidoGrad)"/>
+    <text x="632" y="306" class="badge-fido">FIDO</text>
+    <text x="810" y="306" class="badge-fido">2</text>
+  </g>
+
+  <!-- TITLE: OpenKey Security Engine -->
+  <text x="180" y="605">
+    <tspan class="title-navy">OpenKey Security</tspan>
+    <tspan dx="50" class="title-engine">Engine</tspan>
+  </text>
+</svg>

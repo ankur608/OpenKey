@@ -1,5 +1,5 @@
 # OpenKey - FIDO2 / WebAuthn Hardware Security Key
-<img width="1867" height="442" alt="image" src="https://github.com/user-attachments/assets/60ff640d-fe35-4ebf-a18d-a02e482c1a07" />
+<img src="assets/openkey_banner_uhd.png" alt="OpenKey Security Engine" width="100%" />
 
 Open-source FIDO2 / WebAuthn hardware authenticator and companion application. It delivers enterprise-grade passwordless authentication, hardware-enforced encryption, anti-tracking pseudonymity, and cryptographic duress countermeasures.
 
