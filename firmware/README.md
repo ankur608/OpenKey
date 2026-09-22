@@ -24,13 +24,13 @@ OpenKey is an independent, 100% open-source FIDO2 / WebAuthn hardware security k
    - **USB Mode**: `"USB-OTG (TinyUSB)"`
    - **USB CDC On Boot**: `"Enabled"`
    - **Flash Size**: `"4MB (32Mb)"`
-   - **Partition Scheme**: The sketch includes a custom `partitions.csv` allocating **1.875 MB** for dedicated FIDO2 Non-Volatile Storage, unlocking **1,000 resident passkeys** (double Token2's 500+ credential benchmark).
+   - **Partition Scheme**: The sketch includes a custom `partitions.csv` allocating **2 MB** for dedicated FIDO2 Non-Volatile Storage, unlocking **1,000 resident passkeys**.
    - **Upload Speed**: `921600` (or default)
 4. **Compile & Flash**:
    - Open `firmware/firmware.ino` in Arduino IDE 2.3.10.
    - Plug in the Waveshare ESP32-S3-Zero into your USB port.
    - Click **Verify**, then **Upload**.
-
+(more tests to be performed on other modules soon, let me know, if custom board is to be supported)
 ---
 
 ## Security & Cryptographic Hardening Compliance
