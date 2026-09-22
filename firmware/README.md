@@ -1,4 +1,4 @@
-# OpenKey - Next-Generation Open-Source Hardware Security Key
+# OpenKey - Open-Source Hardware Security Key
 
 OpenKey is an independent, 100% open-source FIDO2 / WebAuthn hardware security key implementation written natively in C++ for the Espressif ESP32-S3 silicon, designed to provide the rigorous CTAP 2.1 standard compliance seen in projects like Google OpenSK, but optimized specifically for ESP32 hardware cryptographic accelerators.
 
