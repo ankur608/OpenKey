@@ -1,0 +1,19 @@
+[package]
+name = "openkey-desktop-manager"
+version = "1.0.0"
+description = "OpenKey 100% Open-Source Cross-Platform Hardware Security Key Manager"
+authors = ["OpenKey Security Foundation"]
+edition = "2021"
+
+[dependencies]
+tauri = { version = "1.5", features = ["shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hidapi = "2.4"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+tokio = { version = "1.35", features = ["full"] }
+
+[build-dependencies]
+tauri-build = { version = "1.5" }

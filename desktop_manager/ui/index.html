@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenKey Desktop Companion</title>
+  <link rel="stylesheet" href="app.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="glow-sphere glow-sphere-1"></div>
+  <div class="glow-sphere glow-sphere-2"></div>
+
+  <div class="app-container">
+    <!-- Glassmorphic Sidebar -->
+    <aside class="sidebar">
+      <div class="brand brand-vector">
+        <div class="brand-vector-card">
+          <div class="brand-wordmark">
+            <span class="brand-open">Open</span><span class="brand-key">Key</span>
+          </div>
+          <span class="brand-tagline">FIDO2 SECURITY ENGINE</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="tab-overview">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span>Overview</span>
+        </button>
+        <button class="nav-item" data-tab="tab-security">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span>Usage Policy</span>
+        </button>
+        <button class="nav-item" data-tab="tab-vault">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <span>BIP-39 Vault</span>
+          <span class="badge-mini" id="vault-badge-pill">Seed</span>
+        </button>
+        <button class="nav-item" data-tab="tab-passkeys">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <span>KeyStore</span>
+          <span class="badge-mini rk-pill">1,000</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-theme-toggle">
+        <span class="theme-title">THEME</span>
+        <div class="theme-radios">
+          <label class="radio-label">
+            <input type="radio" name="app-theme" value="dark" checked id="radio-theme-dark">
+            <span class="radio-custom"></span>
+            <span>Dark</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="app-theme" value="light" id="radio-theme-light">
+            <span class="radio-custom"></span>
+            <span>Normal</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="device-pill unified-bar" id="device-status-indicator">
+          <span class="status-dot disconnected" id="connection-status-dot"></span>
+          <div class="device-info-col">
+            <span class="device-title" id="device-status-text">Disconnected</span>
+            <span class="device-subtitle" id="device-port-text">Insert OpenKey USB</span>
+            <span class="device-serial" id="device-serial-text"></span>
+          </div>
+          <button id="btn-scan" class="btn-refresh-inline" title="Rescan USB Buses">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Stage -->
+    <main class="main-content">
+      <!-- 1. OVERVIEW TAB -->
+      <section id="tab-overview" class="tab-pane active">
+        <header class="tab-header">
+          <div>
+            <div class="badge-hero-wrap">
+              <span class="badge-hero">Open Source</span>
+              <span class="badge-fido2" title="FIDO2 Protocol Certified">
+                <svg width="60" height="22" viewBox="0 0 76 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="76" height="28" rx="6" fill="#121826"/>
+                  <rect x="48" width="28" height="28" rx="6" fill="url(#fido2-grad)"/>
+                  <rect x="48" width="6" height="28" fill="url(#fido2-grad)"/>
+                  <defs>
+                    <linearGradient id="fido2-grad" x1="48" y1="0" x2="76" y2="28" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#0284C7"/>
+                      <stop offset="1" stop-color="#10B981"/>
+                    </linearGradient>
+                  </defs>
+                  <text x="8" y="19" font-family="'Plus Jakarta Sans', Inter, sans-serif" font-weight="800" font-size="14" fill="#FFFFFF" letter-spacing="0.5">FIDO</text>
+                  <text x="55" y="20" font-family="'Plus Jakarta Sans', Inter, sans-serif" font-weight="800" font-size="16" fill="#FFFFFF">2</text>
+                </svg>
+              </span>
+            </div>
+            <h1 class="hero-title">OpenKey Security Engine</h1>
+            <p class="subtitle">Hardware telemetry, flash encryption state, and real-time defense posture.</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-wink" class="btn btn-glass" title="Toggle OpenKey LED to identify connected hardware">
+              <span class="led-indicator"></span> Identify Key
+            </button>
+          </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-3">
+          <div class="card stat-card glass-panel">
+            <div class="stat-icon-wrap icon-cyan">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+            </div>
+            <span class="card-label">CORE ARCHITECTURE</span>
+            <h3>ESP32-S3-Zero</h3>
+            <span class="badge badge-cyan">Xtensa LX7 @ 240MHz</span>
+          </div>
+
+          <div class="card stat-card glass-panel">
+            <div class="stat-icon-wrap icon-emerald">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            </div>
+            <span class="card-label">FLASH ENCRYPTION</span>
+            <h3>AES-256-XTS</h3>
+            <span class="badge badge-emerald">Hardware eFuse Enforced</span>
+          </div>
+
+          <div class="card stat-card glass-panel">
+            <div class="stat-icon-wrap icon-purple">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <span class="card-label">ENTROPY SOURCE</span>
+            <h3>Die TRNG</h3>
+            <span class="badge badge-purple">NIST SP 800-90B OK</span>
+          </div>
+        </div>
+
+        <!-- Security Posture Grid -->
+        <div class="grid grid-2 mt-20">
+          <div class="card glass-panel">
+            <div class="card-header-flex">
+              <h3>Active Security Posture</h3>
+              <span class="live-pulse">LIVE</span>
+            </div>
+            <div class="posture-list mt-15">
+              <div class="posture-item">
+                <div class="posture-icon ok">✓</div>
+                <div class="posture-text">
+                  <strong>BIP-39 Cryptographic Vault (Feature 3)</strong>
+                  <span id="overview-seed-status" class="text-muted text-xs">Checking seed state...</span>
+                </div>
+                <span id="overview-seed-badge" class="badge badge-info">Checking</span>
+              </div>
+              <div class="posture-item">
+                <div class="posture-icon ok">✓</div>
+                <div class="posture-text">
+                  <strong>Ephemeral AAGUID Anti-Tracking (Feature 6)</strong>
+                  <span id="overview-stealth-desc" class="text-muted text-xs">Cross-domain correlation defense</span>
+                </div>
+                <span id="overview-stealth-badge" class="badge badge-info">Checking</span>
+              </div>
+              <div class="posture-item">
+                <div class="posture-icon ok">✓</div>
+                <div class="posture-text">
+                  <strong>Phishing Strobe & Presence (Feature 2)</strong>
+                  <span class="text-muted text-xs">Heartbeat Blue (60) / Rapid Red Strobe (150)</span>
+                </div>
+                <span class="badge badge-emerald">Armed</span>
+              </div>
+              <div class="posture-item">
+                <div class="posture-icon ok">✓</div>
+                <div class="posture-text">
+                  <strong>Air-Gapped 20s Power-On Wipe (Feature 8)</strong>
+                  <span class="text-muted text-xs">GPIO 0 physical master sanitization</span>
+                </div>
+                <span class="badge badge-emerald">Armed</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-panel">
+            <h3>Identity & Attestation Matrix</h3>
+            <table class="data-table mt-15">
+              <tbody>
+                <tr><td>Manufacturer</td><td id="info-manuf" class="mono">OpenKey Security</td></tr>
+                <tr><td>Product Name</td><td id="info-product" class="mono">OpenKey</td></tr>
+                <tr><td>AAGUID</td><td id="info-aaguid" class="mono text-xs">4f70656e-4b65-7953-3330-000000000001</td></tr>
+                <tr><td>Firmware Core</td><td id="info-firmware" class="mono text-xs">v1.0.0 (mbedTLS 3.x / ESP32 Core 3.0.7)</td></tr>
+                <tr><td>Passkey Capacity</td><td id="info-rk-count" class="mono">0 / 1,000 Resident Keys</td></tr>
+                <tr><td>USB Protocol</td><td><span class="tag">FIDO2 CTAP 2.1</span> <span class="tag">U2F_V2</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Key Storage & Capacity Round Graphic Gauge Card (User Reference Design) -->
+        <div class="card glass-panel mt-20 gauge-showcase-card">
+          <div class="card-header-flex">
+            <div>
+              <span class="badge badge-coral">PASSKEY HARDWARE STORAGE</span>
+              <h3 class="mt-5">Resident Key Storage & Reserved Capacity</h3>
+              <p class="text-muted text-xs">Real-time graphic gauge of stored passkeys and remaining wear-leveled flash slots.</p>
+            </div>
+            <div class="gauge-mode-toggle">
+              <button class="btn-gauge-mode active" id="btn-mode-used" data-mode="used">Stored %</button>
+              <button class="btn-gauge-mode" id="btn-mode-remaining" data-mode="remaining">Remaining %</button>
+            </div>
+          </div>
+
+          <div class="gauge-card-body mt-20">
+            <!-- Round Graphic Donut Gauge matching user reference image -->
+            <div class="gauge-visual-column">
+              <div class="round-gauge-container" id="overview-round-gauge" title="Click to toggle between Stored % and Remaining %">
+                <svg class="gauge-svg" viewBox="0 0 140 140" width="140" height="140">
+                  <circle class="gauge-bg-ring" cx="70" cy="70" r="52" fill="none" stroke-width="15" />
+                  <circle class="gauge-arc-fill" id="overview-gauge-arc" cx="70" cy="70" r="52" fill="none"
+                          stroke-width="15" stroke-dasharray="326.73" stroke-dashoffset="326.73"
+                          stroke-linecap="round" transform="rotate(-90 70 70)" />
+                </svg>
+                <div class="gauge-center-content">
+                  <span class="gauge-percentage-text" id="overview-gauge-number">0%</span>
+                  <span class="gauge-mode-badge" id="overview-gauge-sub">STORED</span>
+                </div>
+              </div>
+              <span class="gauge-hint text-muted text-xs mt-10">Click gauge to flip mode</span>
+            </div>
+
+            <!-- Detailed Breakdown Metrics Grid -->
+            <div class="gauge-metrics-grid">
+              <div class="metric-tile">
+                <span class="metric-label">Keys Stored</span>
+                <div class="metric-value-row">
+                  <span class="dot-indicator coral"></span>
+                  <strong id="metric-stored-count" class="text-coral">0 / 1,000</strong>
+                </div>
+                <span class="metric-sub text-muted text-xs">Resident Credentials in NVS</span>
+              </div>
+
+              <div class="metric-tile">
+                <span class="metric-label">Reserved Remaining</span>
+                <div class="metric-value-row">
+                  <span class="dot-indicator emerald"></span>
+                  <strong id="metric-remaining-count" class="text-emerald">1,000 Free</strong>
+                </div>
+                <span class="metric-sub text-muted text-xs">Available hardware key slots</span>
+              </div>
+
+              <div class="metric-tile">
+                <span class="metric-label">Flash Partition</span>
+                <div class="metric-value-row">
+                  <span class="dot-indicator cyan"></span>
+                  <strong class="text-cyan">1.875 MB</strong>
+                </div>
+                <span class="metric-sub text-muted text-xs">480 Physical Sectors</span>
+              </div>
+
+              <div class="metric-tile">
+                <span class="metric-label">Wear-Leveling Headroom</span>
+                <div class="metric-value-row">
+                  <span class="dot-indicator purple"></span>
+                  <strong id="metric-wear-headroom" class="text-purple">100.0%</strong>
+                </div>
+                <span class="metric-sub text-muted text-xs">Zero sector wear exhaustion</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Device Metadata Card (FIDO MDS Specification matching Keyroost) -->
+        <div class="card glass-panel mt-20 mds-card">
+          <div class="card-header-flex">
+            <div class="mds-title-group">
+              <div class="mds-badge-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+              </div>
+              <div>
+                <div class="card-title-row">
+                  <h3 id="mds-card-title">OpenKey S30 L2</h3>
+                  <span class="badge badge-emerald" id="mds-cert-badge">FIDO Certified L2</span>
+                </div>
+                <p class="text-muted text-xs">Device metadata (FIDO MDS Specification & Attestation Registry)</p>
+              </div>
+            </div>
+            <div class="card-tabs" id="mds-nav-tabs">
+              <button class="card-tab active" data-mdstab="mds-specs">Metadata (MDS)</button>
+              <button class="card-tab" data-mdstab="mds-crypto">Cryptographic Specs</button>
+              <button class="card-tab" data-mdstab="mds-attest">Attestation</button>
+            </div>
+          </div>
+
+          <!-- TAB 1: Metadata (MDS) -->
+          <div class="card-tab-content active" id="mds-specs">
+            <div class="mds-grid mt-15">
+              <div class="mds-field">
+                <span class="mds-label">Certification Level</span>
+                <div class="mds-value-group">
+                  <span class="status-indicator-mini emerald"></span>
+                  <strong id="mds-cert-level" class="text-emerald">FIDO Certified L2</strong>
+                </div>
+              </div>
+              <div class="mds-field">
+                <span class="mds-label">Certified since</span>
+                <strong id="mds-cert-since">2026-09-22</strong>
+                <span class="mds-subnote text-muted text-xs">(Self CA)</span>
+              </div>
+              <div class="mds-field">
+                <span class="mds-label">Protocol family</span>
+                <strong id="mds-protocol-family" class="mono">fido2</strong>
+              </div>
+              <div class="mds-field">
+                <span class="mds-label">Versions</span>
+                <div class="version-tags" id="mds-versions">
+                  <span class="tag">U2F_V2</span>
+                  <span class="tag">FIDO_2_0</span>
+                  <span class="tag">FIDO_2_1</span>
+                </div>
+              </div>
+              <div class="mds-field full-width">
+                <span class="mds-label">AAGUID</span>
+                <div class="aaguid-display-wrap">
+                  <span class="mono text-xs" id="mds-aaguid">a4e9fc6d-4cbe-4758-b8ba-37598bb5bbaa</span>
+                  <span class="badge badge-cyan" id="mds-aaguid-type">FIDO MDS Registered L2</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: Cryptographic Specs -->
+          <div class="card-tab-content" id="mds-crypto">
+            <div class="mds-grid mt-15">
+              <div class="mds-field">
+                <span class="mds-label">Public Key Algorithms</span>
+                <div class="version-tags">
+                  <span class="tag">ES256 (COSE -7)</span>
+                  <span class="tag">Ed25519 (COSE -8)</span>
+                  <span class="tag">RS256 (COSE -257)</span>
+                </div>
+              </div>
+              <div class="mds-field">
+                <span class="mds-label">Key Protection</span>
+                <strong>Hardware Security Core / eFuse AES-256-XTS</strong>
+              </div>
+              <div class="mds-field">
+                <span class="mds-label">User Verification</span>
+                <strong>PIN (ClientPIN / UV) + Physical Capacitive Touch (UP)</strong>
+              </div>
+              <div class="mds-field">
+                <span class="mds-label">Attachment Modality</span>
+                <strong>USB-C (Removable Security Key)</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: Attestation -->
+          <div class="card-tab-content" id="mds-attest">
+            <div class="attestation-preview mt-15">
+              <div class="attest-row">
+                <span class="text-muted text-xs">Attestation Format:</span>
+                <span class="mono text-xs">packed / self / none</span>
+              </div>
+              <div class="attest-row mt-5">
+                <span class="text-muted text-xs">Root CA Subject:</span>
+                <span class="mono text-xs">CN=OpenKey Root CA, O=OpenKey Open Source Security, C=US</span>
+              </div>
+              <div class="attest-row mt-5">
+                <span class="text-muted text-xs">Batch Attestation Key:</span>
+                <span class="mono text-xs">Hardware P-256 Keypair in eFuse Secure Storage</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. USAGE POLICY & CONTROLS TAB -->
+      <section id="tab-security" class="tab-pane">
+        <header class="tab-header">
+          <div>
+            <div class="badge-hero">SECURITY POLICIES</div>
+            <h1 class="hero-title">Usage Policy & Controls</h1>
+            <p class="subtitle">Configure client PIN, anti-tracking pseudonymity, and anti-coercion defense.</p>
+          </div>
+        </header>
+
+        <div class="grid grid-2">
+          <!-- Feature 6 & MDS Card: 3-Way AAGUID Profile Selector -->
+          <div class="card glass-panel glow-border">
+            <div class="card-header-flex">
+              <div>
+                <span class="badge badge-cyan">FEATURE 6 & FIDO MDS</span>
+                <h3 class="mt-5">AAGUID Identity Profile</h3>
+              </div>
+              <span id="active-profile-badge" class="badge badge-info">Profile 0</span>
+            </div>
+            <p class="text-muted mt-10">
+              Select the Authenticator Attestation GUID (AAGUID) emitted by OpenKey. Changes are cryptographically enforced across WebAuthn ceremonies.
+            </p>
+
+            <div class="profile-selector-group mt-15">
+              <label class="profile-card-option" id="label-prof-0">
+                <input type="radio" name="aaguid-profile" value="0" checked id="radio-prof-0" />
+                <div class="profile-card-content">
+                  <div class="profile-card-header">
+                    <strong>Profile 0: Native OpenKey Identifier</strong>
+                    <span class="badge badge-info">Default</span>
+                  </div>
+                  <span class="mono text-xs">4f70656e-4b65-7953-3330-000000000001</span>
+                  <p class="text-muted text-xs mt-5">Authentic OpenKey open-source token ID. Standard registration and enterprise policy compliance.</p>
+                </div>
+              </label>
+
+              <label class="profile-card-option" id="label-prof-1">
+                <input type="radio" name="aaguid-profile" value="1" id="radio-prof-1" />
+                <div class="profile-card-content">
+                  <div class="profile-card-header">
+                    <strong>Profile 1: Stealth Mode (Anti-Tracking)</strong>
+                    <span class="badge badge-cyan">Privacy Hardened</span>
+                  </div>
+                  <span class="mono text-xs">00000000-0000-0000-0000-000000000000 (Ephemeral RP)</span>
+                  <p class="text-muted text-xs mt-5">Returns zeroes in discovery & RP-isolated HMAC in registration to prevent cross-site identity tracking.</p>
+                </div>
+              </label>
+
+              <label class="profile-card-option" id="label-prof-2">
+                <input type="radio" name="aaguid-profile" value="2" id="radio-prof-2" />
+                <div class="profile-card-content">
+                  <div class="profile-card-header">
+                    <strong>Profile 2: FIDO MDS L2 Compatible</strong>
+                    <span class="badge badge-emerald">Keyroost Certified L2</span>
+                  </div>
+                  <span class="mono text-xs">a4e9fc6d-4cbe-4758-b8ba-37598bb5bbaa</span>
+                  <p class="text-muted text-xs mt-5">FIDO Alliance MDS3 registered L2 AAGUID. Immediately unlocks the green FIDO Certified L2 card and all metadata tabs in Keyroost.</p>
+                </div>
+              </label>
+            </div>
+
+            <div class="action-row mt-20">
+              <input type="password" id="input-profile-pin" class="input-glass input-sm" placeholder="Device PIN (if configured)" />
+              <button id="btn-apply-profile" class="btn btn-primary">Apply Profile to Key</button>
+            </div>
+          </div>
+
+          <!-- PIN Policy Card -->
+          <div class="card glass-panel">
+            <div class="card-header-flex">
+              <div>
+                <span class="badge badge-emerald">AUTHENTICATION</span>
+                <h3 class="mt-5">Device PIN Policy</h3>
+              </div>
+              <span id="pin-status-pill" class="badge badge-emerald">PIN Configured</span>
+            </div>
+            <p class="text-muted mt-10">Enforce User Verification before releasing credentials or unlocking secrets.</p>
+
+            <div class="form-group mt-15">
+              <label>Current or New PIN (Min 4 characters)</label>
+              <input type="password" id="input-new-pin" class="input-glass" placeholder="••••••••" />
+            </div>
+            <div class="form-group">
+              <label>Confirm PIN</label>
+              <input type="password" id="input-confirm-pin" class="input-glass" placeholder="••••••••" />
+            </div>
+            <div class="action-row mt-15">
+              <button id="btn-save-pin" class="btn btn-primary">Update Device PIN</button>
+              <span class="text-xs text-muted" id="pin-retries-hint">8 retries remaining</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Anti-Coercion Panic PIN (Feature 1) -->
+        <div class="card glass-panel mt-20">
+          <div class="card-header-flex">
+            <div>
+              <span class="badge badge-danger">FEATURE 1</span>
+              <h3 class="mt-5">Anti-Coercion Duress / Panic PIN</h3>
+            </div>
+          </div>
+          <p class="text-muted mt-10">
+            A secondary silent emergency PIN. If entered at any OS or browser authentication prompt, OpenKey executes an immediate, silent hardware erase of all 1,000 passkeys in ~15 ms and returns an ordinary "PIN Invalid" error to deceive coercers.
+          </p>
+          <div class="grid grid-2 mt-15">
+            <div class="form-group">
+              <label>Set Panic PIN</label>
+              <input type="password" id="input-duress-pin" class="input-glass" placeholder="••••••••" />
+            </div>
+            <div class="form-group">
+              <label>Confirm Panic PIN</label>
+              <input type="password" id="input-confirm-duress" class="input-glass" placeholder="••••••••" />
+            </div>
+          </div>
+          <button id="btn-save-duress" class="btn btn-danger-outline mt-10">Arm Duress Panic PIN</button>
+        </div>
+      </section>
+
+      <!-- 3. BIP-39 CRYPTOGRAPHIC VAULT (FEATURE 3) -->
+      <section id="tab-vault" class="tab-pane">
+        <header class="tab-header">
+          <div>
+            <div class="badge-hero">FEATURE 3</div>
+            <h1 class="hero-title">BIP-39 Mnemonic Seed Vault</h1>
+            <p class="subtitle">Air-gapped 24-word cryptographic seed backup and seamless disaster recovery.</p>
+          </div>
+          <div class="subnav-tabs">
+            <button class="subnav-btn active" data-subtab="subtab-generate">Provision New Seed</button>
+            <button class="subnav-btn" data-subtab="subtab-restore">Disaster Recovery (Restore)</button>
+          </div>
+        </header>
+
+        <!-- SUBTAB 1: GENERATE & PROVISION SEED -->
+        <div id="subtab-generate" class="subtab-pane active">
+          <div class="card glass-panel">
+            <div class="card-header-flex">
+              <div>
+                <h3>Master 24-Word Cryptographic Mnemonic</h3>
+                <p class="text-muted text-xs">Standard BIP-39 256-bit entropy. Write these words down on your paper backup card.</p>
+              </div>
+              <div class="btn-group">
+                <button id="btn-gen-seed" class="btn btn-secondary">Generate Fresh Words</button>
+                <button id="btn-copy-seed" class="btn btn-glass" title="Copy words">Copy</button>
+              </div>
+            </div>
+
+            <!-- 24-Word Glassmorphic Grid -->
+            <div class="seed-grid mt-20" id="seed-words-container">
+              <!-- Dynamically populated -->
+            </div>
+
+            <!-- Provision to Key Bar -->
+            <div class="provision-bar mt-25">
+              <div class="provision-info">
+                <strong>Flash Seed to OpenKey:</strong>
+                <span class="text-muted text-xs">Pushes the 64-byte master seed to your key. Requires physical touch verification on GPIO 0.</span>
+              </div>
+              <div class="provision-action">
+                <input type="password" id="input-provision-pin" class="input-glass input-sm" placeholder="Device PIN (if set)" />
+                <button id="btn-provision-seed" class="btn btn-primary">Flash Seed to Key</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBTAB 2: RESTORE FROM BACKUP -->
+        <div id="subtab-restore" class="subtab-pane">
+          <div class="card glass-panel">
+            <h3>Disaster Recovery: Restore Key from 24 Words</h3>
+            <p class="text-muted text-xs mt-5">
+              If your OpenKey was lost or damaged, enter your 24 words below into a new OpenKey. All credentials will be mathematically re-derived.
+            </p>
+
+            <div class="form-group mt-20">
+              <div class="card-header-flex">
+                <label>Enter 24 Words (Space-separated)</label>
+                <span id="restore-checksum-badge" class="badge badge-info">Waiting for 24 words</span>
+              </div>
+              <textarea id="restore-words-input" class="textarea-glass" rows="4" placeholder="abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual"></textarea>
+            </div>
+
+            <div class="action-row mt-15">
+              <input type="password" id="input-restore-pin" class="input-glass input-sm" placeholder="Device PIN (if set)" />
+              <button id="btn-execute-restore" class="btn btn-primary">Restore Seed into OpenKey</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. KEYSTORE INVENTORY TAB (1,000 CAPACITY) -->
+      <section id="tab-passkeys" class="tab-pane">
+        <header class="tab-header">
+          <div>
+            <div class="badge-hero">1,000 RESIDENT KEYS</div>
+            <h1 class="hero-title">KeyStore Inventory</h1>
+            <p class="subtitle">On-device discoverable passkeys committed to raw NVS flash storage.</p>
+          </div>
+        </header>
+
+        <div class="grid grid-3">
+          <div class="card stat-card glass-panel">
+            <span class="card-label">PARTITION ALLOCATION</span>
+            <h3>1.875 MB</h3>
+            <span class="badge badge-emerald">480 Physical Sectors</span>
+          </div>
+          <div class="card stat-card glass-panel gauge-stat-card">
+            <div class="gauge-stat-flex">
+              <div class="round-gauge-mini" id="passkey-round-gauge-mini">
+                <svg class="gauge-svg-mini" viewBox="0 0 74 74" width="74" height="74">
+                  <circle class="gauge-bg-ring" cx="37" cy="37" r="27" fill="none" stroke-width="8" />
+                  <circle class="gauge-arc-fill" id="passkey-gauge-mini-arc" cx="37" cy="37" r="27" fill="none"
+                          stroke-width="8" stroke-dasharray="169.64" stroke-dashoffset="169.64"
+                          stroke-linecap="round" transform="rotate(-90 37 37)" />
+                </svg>
+                <div class="gauge-inner-mini">
+                  <span class="gauge-mini-num" id="passkey-gauge-mini-num">0%</span>
+                </div>
+              </div>
+              <div class="stat-meta">
+                <span class="card-label">PASSKEY CAPACITY</span>
+                <h3 id="passkey-capacity-stat">0 / 1,000</h3>
+                <span class="badge badge-coral" id="passkey-stat-pill">1,000 Free Slots</span>
+              </div>
+            </div>
+          </div>
+          <div class="card stat-card glass-panel">
+            <span class="card-label">STORAGE OVERHEAD</span>
+            <h3>~13%</h3>
+            <span class="badge badge-purple">NVS Wear-Leveling OK</span>
+          </div>
+        </div>
+
+        <div class="card glass-panel mt-20">
+          <div class="card-header-flex">
+            <div>
+              <h3>Registered Relying Parties (WebAuthn Domains)</h3>
+              <p class="text-muted text-xs">Credentials committed to OpenKey raw NVS flash storage.</p>
+            </div>
+            <button id="btn-add-sample-key" class="btn btn-secondary btn-sm">+ Enroll Test Passkey</button>
+          </div>
+          
+          <div class="table-responsive mt-15">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Relying Party (Domain)</th>
+                  <th>Credential ID</th>
+                  <th>Algorithm</th>
+                  <th>User Verification</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="passkey-table-body">
+                <tr>
+                  <td><strong>webauthn.io</strong></td>
+                  <td class="mono text-xs">c94f..882a</td>
+                  <td><span class="tag">ES256 (-7)</span></td>
+                  <td><span class="badge badge-emerald">UP + UV</span></td>
+                  <td><button class="btn-sm-danger">Delete</button></td>
+                </tr>
+                <tr>
+                  <td><strong>github.com</strong></td>
+                  <td class="mono text-xs">10ae..34f1</td>
+                  <td><span class="tag">ES256 (-7)</span></td>
+                  <td><span class="badge badge-emerald">UP + UV</span></td>
+                  <td><button class="btn-sm-danger">Delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
