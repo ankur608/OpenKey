@@ -33,7 +33,7 @@ OpenKey is an independent, 100% open-source FIDO2 / WebAuthn hardware security k
 
 ---
 
-## VAPT & Cryptographic Hardening Compliance
+## Security & Cryptographic Hardening Compliance
 
 | Vector / Attack Profile | Vulnerability Class | OpenKey Hardened Countermeasure |
 |:---|:---|:---|
@@ -50,7 +50,7 @@ OpenKey is an independent, 100% open-source FIDO2 / WebAuthn hardware security k
 ## Protocol Matrix
 
 ### 1. FIDO2 / WebAuthn / CTAP 2.1
-- **Credential Storage Capacity**: **1,000 Resident Passkeys** (Discoverable Credentials) stored in a dedicated 1.875 MB `fido_nvs` partition with wear-leveling endurance, doubling Token2's 500+ credential benchmark.
+- **Credential Storage Capacity**: **1,000 Resident Passkeys** (Discoverable Credentials) stored in a dedicated 1.875 MB `fido_nvs` partition with wear-leveling endurance, extending the established credential benchmark.
 - **Commands**: `authenticatorMakeCredential`, `authenticatorGetAssertion`, `authenticatorGetInfo`, `authenticatorClientPIN`, `authenticatorReset`, `authenticatorLargeBlobs`.
 - **Extensions**:
   - `hmac-secret`: Derives deterministic HMAC-SHA256 secrets for KeePassXC offline database unlocks.
@@ -60,20 +60,4 @@ OpenKey is an independent, 100% open-source FIDO2 / WebAuthn hardware security k
 - **Algorithms**: NIST P-256 (ES256) with low-S canonical DER formatting.
 - **Client PIN**: PIN Protocol 1 (ECDH P-256 + AES-256-CBC with SHA-256 and monotonic rate limiting).
 - **Physical Touch Policy**: GPIO 0 BOOT button with WS2812B NeoPixel breathing heartbeat blue challenge.
-
----
-
-## Desktop Manager (Rust + Tauri)
-
-The companion desktop utility in `/desktop_manager` provides a cross-platform GUI:
-```bash
-cd desktop_manager/src-tauri
-cargo tauri dev
-```
-Features:
-- Live USB HID device enumeration via `hidapi`
-- One-click NeoPixel visual wink test
-- FIDO2 PIN setup & minPinLength configuration
-- Real-time OATH/TOTP authenticator code generation
-- OpenPGP Card fingerprint inspection
-- 24-word BIP-39 mnemonic seed phrase backup
+  
