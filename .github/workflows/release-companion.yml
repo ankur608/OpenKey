@@ -64,8 +64,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: './desktop_manager'
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.2' }}
-          releaseName: 'OpenKey Desktop Companion ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.2' }}'
+          tagName: ${{ github.ref_name }}
+          releaseName: "OpenKey Desktop Companion ${{ github.ref_name }}"
           releaseBody: |
             ## OpenKey Hardware Security Key Manager
             Official cross-platform release for Windows, macOS, and Linux.
