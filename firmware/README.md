@@ -24,7 +24,7 @@ OpenKey is an independent, 100% open-source and auditable FIDO2 based hardware s
    - **USB Mode**: `"USB-OTG (TinyUSB)"`
    - **USB CDC On Boot**: `"Enabled"`
    - **Flash Size**: `"4MB (32Mb)"`
-   - **Partition Scheme**: The sketch includes a custom `partitions.csv` allocating **2 MB** for dedicated FIDO2 Non-Volatile Storage, unlocking **1,000 resident passkeys**.
+   - **Partition Scheme**: The sketch includes a custom `partitions.csv` allocating **1.875 MB** for dedicated FIDO2 Non-Volatile Storage, unlocking **1,000 resident passkeys**.
    - **Upload Speed**: `921600` (or default)
 4. **Compile & Flash**:
    - Open `firmware/firmware.ino` in Arduino IDE 2.3.10.
@@ -59,5 +59,5 @@ OpenKey is an independent, 100% open-source and auditable FIDO2 based hardware s
   - `minPinLength`: Configurable minimum PIN length enforcement.
 - **Algorithms**: NIST P-256 (ES256) with low-S canonical DER formatting.
 - **Client PIN**: PIN Protocol 1 (ECDH P-256 + AES-256-CBC with SHA-256 and monotonic rate limiting).
-- **Physical Touch Policy**: GPIO 0 BOOT button with WS2812B NeoPixel breathing heartbeat blue challenge.
+- **Physical Touch Policy**: GPIO 0 BOOT button with WS2812B heartbeat blue challenge.
   
