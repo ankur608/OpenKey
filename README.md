@@ -19,7 +19,7 @@ Present version supports the **ESP32-S3** platform, more to be added soon..
   - `eFuse`-enforced AES-256-XTS flash encryption.
   - Die True Random Number Generator (TRNG - NIST SP 800-90B compliant).
   - Capacitive Touch User Presence (`UP`) verification on GPIO 1.
-  - Hardware NeoPixel status & identification signaling on GPIO 21.
+  - Hardware WS2812 status & identification signaling on GPIO 21.
   - **Resident Passkey Capacity**: 1,000 discoverable credentials stored in wear-leveled flash (1.875 MB allocated).
   - **Anti-Coercion Duress PIN**: Instant hardware zeroization (~15 ms) upon coercion emergency.
   - **Stealth / FIDO MDS Attestation Profiles**: Dynamic AAGUID profile switching.
