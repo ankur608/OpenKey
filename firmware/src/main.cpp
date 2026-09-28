@@ -542,7 +542,7 @@ static void process_assembled_message(CtapChannel *chan) {
                     OpenKey::Storage::get_vault().factory_reset();
 
                     for (int i = 0; i < 4; i++) {
-                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::WIPE_WHITE);
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::COUNTDOWN_WHITE);
                         delay(80);
                         OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::OFF);
                         delay(80);

@@ -28,6 +28,7 @@ enum class LedState {
     COUNTDOWN_YELLOW,       // Air-Gapped Wipe Countdown Phase 1
     COUNTDOWN_RED,          // Air-Gapped Wipe Countdown Phase 2
     COUNTDOWN_WHITE,        // Air-Gapped Wipe Countdown Phase 3 (Rapid White)
+    WIPE_WHITE = COUNTDOWN_WHITE, // Master Sanitization White
     SUCCESS_GREEN,          // Flash Green: Cryptographic operation authorized
     ERROR_RED,              // Solid Red: Auth failed, timeout, or error
     OFF
