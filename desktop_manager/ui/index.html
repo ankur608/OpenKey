@@ -79,8 +79,64 @@
 
     <!-- Main Content Stage -->
     <main class="main-content">
+      <!-- 0. DISCONNECTED HERO VIEW (Keyroost UX Style) -->
+      <section id="disconnected-hero" class="disconnected-hero active">
+        <div class="empty-state-card glass-panel">
+          <div class="empty-icon-box">
+            <svg class="key-icon-svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2l-2 2m-1.5 1.5L14 9a5 5 0 1 0-4 4l6.5-6.5L18 8l3-3-1.5-1.5z"></path>
+              <circle cx="7.5" cy="16.5" r="1.5"></circle>
+            </svg>
+          </div>
+          <h2 class="empty-hero-title">Plug in your OpenKey to begin</h2>
+          <p class="empty-hero-subtitle">
+            OpenKey Desktop Companion manages OpenKey FIDO2 / Passkey tokens over Web Serial and native USB HID. Connect your hardware key to inspect live cryptographic telemetry, manage resident credentials, and configure security posture.
+          </p>
+
+          <div class="empty-steps-list">
+            <div class="empty-step-item">
+              <div class="step-badge">1</div>
+              <div class="step-text">
+                <strong>Insert your key into a USB port</strong>
+                <span>Plug your OpenKey ESP32-S3 into your PC or Mac via USB-C.</span>
+              </div>
+            </div>
+            <div class="empty-step-item">
+              <div class="step-badge">2</div>
+              <div class="step-text">
+                <strong>Authorise Browser Connection</strong>
+                <span>Grant Web Serial permission to connect directly with the onboard hardware engine.</span>
+              </div>
+            </div>
+            <div class="empty-step-item">
+              <div class="step-badge">3</div>
+              <div class="step-text">
+                <strong>Unlock Telemetry & Passkey Controls</strong>
+                <span>Once authorized, the dashboard unlocks live resident keys, AAGUID profiles, and seed vaults.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-actions">
+            <button id="btn-hero-connect" class="btn btn-primary btn-lg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              Connect OpenKey via Web Serial
+            </button>
+            <button id="btn-hero-scan" class="btn btn-glass">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Scan USB Ports
+            </button>
+          </div>
+
+          <div class="empty-footer-hint">
+            <span class="status-dot disconnected" style="display:inline-block; margin-right:6px;"></span>
+            <span id="hero-connection-hint">Waiting for hardware connection on COM port...</span>
+          </div>
+        </div>
+      </section>
+
       <!-- 1. OVERVIEW TAB -->
-      <section id="tab-overview" class="tab-pane active">
+      <section id="tab-overview" class="tab-pane">
         <header class="tab-header">
           <div>
             <div class="badge-hero-wrap">
@@ -443,9 +499,10 @@
             </div>
 
             <div class="action-row mt-20">
-              <input type="password" id="input-profile-pin" class="input-glass input-sm" placeholder="Device PIN (if configured)" />
+              <input type="password" id="input-profile-pin" class="input-glass input-sm" placeholder="Device PIN (or leave blank to touch button)" />
               <button id="btn-apply-profile" class="btn btn-primary">Apply Profile to Key</button>
             </div>
+            <span id="profile-pin-hint" class="text-xs text-muted mt-5" style="display:block;">If PIN is not set or retries are locked, leave blank and touch the key's BOOT button when prompted.</span>
           </div>
 
           <!-- PIN Policy Card -->
@@ -470,6 +527,17 @@
             <div class="action-row mt-15">
               <button id="btn-save-pin" class="btn btn-primary">Update Device PIN</button>
               <span class="text-xs text-muted" id="pin-retries-hint">8 retries remaining</span>
+            </div>
+
+            <div class="mt-20 pt-15" style="border-top: 1px solid rgba(255,255,255,0.08);">
+              <div class="card-header-flex">
+                <div>
+                  <span class="badge badge-danger">DANGER ZONE</span>
+                  <h4 class="mt-5">Factory Reset & Recovery</h4>
+                </div>
+                <button id="btn-factory-reset" class="btn btn-danger-outline btn-sm">Factory Reset Key</button>
+              </div>
+              <p class="text-muted text-xs mt-5">Wipes all resident passkeys, root seed, and clears locked PIN. Requires pressing key button to authorize.</p>
             </div>
           </div>
         </div>

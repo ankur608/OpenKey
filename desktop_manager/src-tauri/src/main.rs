@@ -120,6 +120,30 @@ fn set_aaguid_profile(device_path: String, pin: String, profile: u8) -> Result<u
 }
 
 #[tauri::command]
+fn set_device_pin(device_path: String, pin: String) -> Result<bool, String> {
+    let mut hasher = Sha256::new();
+    hasher.update(pin.as_bytes());
+    let hash = hasher.finalize();
+
+    let conn = CtapHidConnection::open(&device_path)?;
+    let resp = conn.send_vendor_cmd(0x04, &hash)?;
+    if resp.is_empty() || resp[0] != 0x00 {
+        return Err("Failed to set PIN (button touch timed out)".into());
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+fn factory_reset_device(device_path: String) -> Result<bool, String> {
+    let conn = CtapHidConnection::open(&device_path)?;
+    let resp = conn.send_vendor_cmd(0x05, &[])?;
+    if resp.is_empty() || resp[0] != 0x00 {
+        return Err("Failed to factory reset (button touch timed out)".into());
+    }
+    Ok(true)
+}
+
+#[tauri::command]
 fn set_stealth_mode(device_path: String, pin: String, enabled: bool) -> Result<bool, String> {
     let profile = if enabled { 1 } else { 0 };
     set_aaguid_profile(device_path, pin, profile).map(|p| p == 1)
@@ -267,6 +291,8 @@ fn main() {
             get_openkey_status,
             set_stealth_mode,
             set_aaguid_profile,
+            set_device_pin,
+            factory_reset_device,
             generate_bip39_words,
             validate_bip39_words,
             provision_bip39_seed,

@@ -75,9 +75,19 @@ private:
     DeviceConfig config;
     bool nvs_ready;
 
+    const char* get_part_name() const {
+        static const char* cached_part = nullptr;
+        if (cached_part != nullptr) return cached_part;
+        const esp_partition_t *part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, NVS_PART_FIDO);
+        cached_part = (part != nullptr) ? NVS_PART_FIDO : NVS_DEFAULT_PART_NAME;
+        return cached_part;
+    }
+
 public:
     FlashVault() : nvs_ready(false) {
         memset(&config, 0, sizeof(config));
+        config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
+        config.min_pin_length = OpenKey::Security::PinSecurityPolicy::MIN_PIN_LENGTH;
     }
 
     bool init() {
@@ -88,12 +98,15 @@ public:
         }
         if (err != ESP_OK) return false;
 
-        err = nvs_flash_init_partition(NVS_PART_FIDO);
-        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-            nvs_flash_erase_partition(NVS_PART_FIDO);
-            err = nvs_flash_init_partition(NVS_PART_FIDO);
+        const char* part = get_part_name();
+        if (strcmp(part, NVS_DEFAULT_PART_NAME) != 0) {
+            err = nvs_flash_init_partition(part);
+            if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+                nvs_flash_erase_partition(part);
+                err = nvs_flash_init_partition(part);
+            }
+            if (err != ESP_OK) return false;
         }
-        if (err != ESP_OK) return false;
 
         nvs_ready = true;
         load_config();
@@ -109,7 +122,11 @@ public:
 
     void load_config() {
         nvs_handle_t handle;
-        if (nvs_open_from_partition(NVS_PART_FIDO, NVS_NS_CONFIG, NVS_READWRITE, &handle) != ESP_OK) return;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_CONFIG, NVS_READWRITE, &handle) != ESP_OK) {
+            config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
+            config.min_pin_length = OpenKey::Security::PinSecurityPolicy::MIN_PIN_LENGTH;
+            return;
+        }
 
         size_t size = sizeof(config);
         esp_err_t err = nvs_get_blob(handle, "cfg", &config, &size);
@@ -123,13 +140,20 @@ public:
             config.large_blob_len = 0;
             nvs_set_blob(handle, "cfg", &config, sizeof(config));
             nvs_commit(handle);
+        } else {
+            // Safety guard: if PIN is not configured or retries zeroed without a PIN, reset to MAX
+            if (!is_pin_set() && config.pin_retries_remaining == 0) {
+                config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
+                nvs_set_blob(handle, "cfg", &config, sizeof(config));
+                nvs_commit(handle);
+            }
         }
         nvs_close(handle);
     }
 
     void save_config() {
         nvs_handle_t handle;
-        if (nvs_open_from_partition(NVS_PART_FIDO, NVS_NS_CONFIG, NVS_READWRITE, &handle) != ESP_OK) return;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_CONFIG, NVS_READWRITE, &handle) != ESP_OK) return;
         nvs_set_blob(handle, "cfg", &config, sizeof(config));
         nvs_commit(handle);
         nvs_close(handle);
@@ -153,6 +177,7 @@ public:
     }
 
     uint8_t get_pin_retries() const {
+        if (!is_pin_set()) return OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
         return config.pin_retries_remaining;
     }
 
@@ -236,7 +261,7 @@ public:
      */
     bool save_resident_key(const FidoResidentKeyRecord &rec) {
         nvs_handle_t handle;
-        if (nvs_open_from_partition(NVS_PART_FIDO, NVS_NS_FIDO_RK, NVS_READWRITE, &handle) != ESP_OK) return false;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_FIDO_RK, NVS_READWRITE, &handle) != ESP_OK) return false;
 
         char key_str[16];
         int first_free_slot = -1;
@@ -273,7 +298,7 @@ public:
      */
     bool find_resident_key_by_rp(const uint8_t *rp_id_hash_32b, FidoResidentKeyRecord *out_rec) {
         nvs_handle_t handle;
-        if (nvs_open_from_partition(NVS_PART_FIDO, NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return false;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return false;
 
         char key_str[16];
         for (int i = 0; i < MAX_RESIDENT_KEYS; i++) {
@@ -297,7 +322,7 @@ public:
      */
     bool find_resident_key_by_id(const uint8_t *cred_id_32b, FidoResidentKeyRecord *out_rec) {
         nvs_handle_t handle;
-        if (nvs_open_from_partition(NVS_PART_FIDO, NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return false;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return false;
 
         char key_str[16];
         for (int i = 0; i < MAX_RESIDENT_KEYS; i++) {
@@ -396,7 +421,7 @@ public:
 
     uint16_t get_active_resident_key_count() {
         nvs_handle_t handle;
-        if (nvs_open_from_partition(NVS_PART_FIDO, NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return 0;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return 0;
         uint16_t count = 0;
         char key_str[16];
         for (int i = 0; i < MAX_RESIDENT_KEYS; i++) {
@@ -415,8 +440,14 @@ public:
      * @brief Factory Reset: Wipes all NVS cryptographic keys, PINs, and accounts
      */
     void factory_reset() {
-        nvs_flash_erase_partition(NVS_PART_FIDO);
-        nvs_flash_init_partition(NVS_PART_FIDO);
+        const char* part = get_part_name();
+        if (strcmp(part, NVS_DEFAULT_PART_NAME) != 0) {
+            nvs_flash_erase_partition(part);
+            nvs_flash_init_partition(part);
+        } else {
+            nvs_flash_erase();
+            nvs_flash_init();
+        }
         memset(&config, 0, sizeof(config));
         config.initialized = 0xA5;
         config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;

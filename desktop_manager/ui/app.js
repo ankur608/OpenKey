@@ -151,9 +151,16 @@ async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
     const cmdOrSeq = pkt[4];
     if (cmdOrSeq & 0x80) {
       // INIT frame
-      const respCmd = cmdOrSeq & 0x7F;
       if (respCmd === 0x3B) continue; // Keepalive (waiting for physical touch)
-      if (respCmd === 0x3F) throw new Error(`CTAPHID error: 0x${pkt[7].toString(16).padStart(2, '0')}`);
+      if (respCmd === 0x3F) {
+        const err = pkt[7];
+        let errMsg = `CTAPHID error: 0x${err.toString(16).padStart(2, '0')}`;
+        if (err === 0x31) errMsg = "Invalid PIN (or leave blank & touch BOOT button on key to authorize)";
+        else if (err === 0x32) errMsg = "PIN Locked (0 retries remaining). Please touch key BOOT button or Factory Reset below.";
+        else if (err === 0x3A) errMsg = "Physical touch timed out (please touch the BOOT button when LED flashes)";
+        else if (err === 0x3E) errMsg = "Physical button touch required on key to authorize";
+        throw new Error(errMsg);
+      }
 
       expectedTotal = (pkt[5] << 8) | pkt[6];
       const chunk = Math.min(57, expectedTotal);
@@ -332,9 +339,28 @@ const invoke = async (cmd, args) => {
 
       const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x03, ...payload]));
       if (resp.length === 0 || resp[0] !== 0x00) {
-        throw new Error("Failed to update AAGUID profile on hardware (verify PIN)");
+        throw new Error("Failed to update AAGUID profile on hardware");
       }
       return args.profile;
+    }
+
+    case "set_device_pin": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const hash = await sha256Bytes(args.pin);
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x04, ...hash]));
+      if (resp.length === 0 || resp[0] !== 0x00) {
+        throw new Error("Failed to set PIN on hardware (touch confirmation timed out)");
+      }
+      return true;
+    }
+
+    case "factory_reset_device": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x05]));
+      if (resp.length === 0 || resp[0] !== 0x00) {
+        throw new Error("Failed to factory reset OpenKey (touch confirmation timed out)");
+      }
+      return true;
     }
 
     case "provision_bip39_seed": {
@@ -473,9 +499,19 @@ function setupNavigation() {
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
       tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      const hero = document.getElementById("disconnected-hero");
+      if (!activeDevice) {
+        showToast("Plug in and connect OpenKey to access " + tab.textContent.trim());
+        if (hero) hero.classList.add("active");
+        document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+        return;
+      }
+
+      if (hero) hero.classList.remove("active");
       document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
 
-      tab.classList.add("active");
       const targetId = tab.getAttribute("data-tab");
       const targetPane = document.getElementById(targetId);
       if (targetPane) targetPane.classList.add("active");
@@ -844,9 +880,76 @@ function setupEventListeners() {
         alert("PIN confirmation mismatch!");
         return;
       }
-      showToast("Device PIN updated and committed to hardware NVS.");
-      document.getElementById("input-new-pin").value = "";
-      document.getElementById("input-confirm-pin").value = "";
+      if (!activeDevice) {
+        alert("Please connect your OpenKey first.");
+        return;
+      }
+      showToast("Please touch the BOOT button on OpenKey to authorize new PIN...");
+      invoke("set_device_pin", { pin: p1 })
+        .then(() => {
+          showToast("Device PIN successfully updated and committed to hardware NVS!");
+          document.getElementById("input-new-pin").value = "";
+          document.getElementById("input-confirm-pin").value = "";
+          if (activeDevice) queryDeviceTelemetry(activeDevice.path);
+        })
+        .catch(err => {
+          alert("Failed to update PIN: " + err.message);
+        });
+    });
+  }
+
+  // Factory Reset & Master Wipe
+  const btnFactoryReset = document.getElementById("btn-factory-reset");
+  if (btnFactoryReset) {
+    btnFactoryReset.addEventListener("click", () => {
+      if (!activeDevice) {
+        alert("Please connect your OpenKey first.");
+        return;
+      }
+      if (!confirm("Are you sure you want to Factory Reset OpenKey?\n\nThis will wipe all credentials, master seed, and reset the PIN to restore 8 retries. You will need to press the key's BOOT button to confirm.")) {
+        return;
+      }
+      showToast("Please touch the BOOT button on OpenKey to authorize Factory Reset...");
+      invoke("factory_reset_device")
+        .then(() => {
+          showToast("OpenKey successfully factory reset!");
+          if (activeDevice) queryDeviceTelemetry(activeDevice.path);
+        })
+        .catch(err => {
+          alert("Factory reset failed: " + err.message);
+        });
+    });
+  }
+
+  // Hero Disconnected Buttons
+  const btnHeroConnect = document.getElementById("btn-hero-connect");
+  if (btnHeroConnect) {
+    btnHeroConnect.addEventListener("click", () => {
+      requestWebSerialConnection();
+    });
+  }
+
+  const btnHeroScan = document.getElementById("btn-hero-scan");
+  if (btnHeroScan) {
+    btnHeroScan.addEventListener("click", () => {
+      autoCheckWebSerial();
+      scanConnectedDevices();
+      showToast("Scanning for OpenKey on USB ports...");
+    });
+  }
+
+  // Clickable sidebar device box
+  const sidebarDeviceBox = document.querySelector(".sidebar-device");
+  if (sidebarDeviceBox) {
+    sidebarDeviceBox.style.cursor = "pointer";
+    sidebarDeviceBox.addEventListener("click", (e) => {
+      if (e.target.closest(".btn-refresh-inline")) return;
+      if (!activeDevice) {
+        requestWebSerialConnection();
+      } else {
+        queryDeviceTelemetry(activeDevice.path);
+        showToast("Refreshed OpenKey hardware status");
+      }
     });
   }
 
@@ -908,6 +1011,28 @@ function setupEventListeners() {
   }
 }
 
+function updateConnectionUI(isConnected) {
+  const hero = document.getElementById("disconnected-hero");
+  const heroHint = document.getElementById("hero-connection-hint");
+  const activeTab = document.querySelector(".nav-item.active");
+  const activeTabId = activeTab ? activeTab.getAttribute("data-tab") : "tab-overview";
+  const targetPane = document.getElementById(activeTabId);
+
+  if (isConnected && activeDevice) {
+    if (hero) hero.classList.remove("active");
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+    if (targetPane) targetPane.classList.add("active");
+  } else {
+    if (hero) hero.classList.add("active");
+    if (heroHint) {
+      heroHint.textContent = isWebSerialSupported()
+        ? "Waiting for connection. Plug in OpenKey and click Connect above."
+        : "Web Serial not supported in this browser. Please use Chrome or Edge.";
+    }
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  }
+}
+
 // 7. Device Scanning & Strict Connection Indicator
 function scanConnectedDevices() {
   const statusIndicator = document.getElementById("device-status-text");
@@ -925,6 +1050,7 @@ function scanConnectedDevices() {
           if (statusIndicator) statusIndicator.textContent = activeDevice.product || "OpenKey";
           if (portIndicator) portIndicator.textContent = activeDevice.path ? `${activeDevice.manufacturer} (${activeDevice.path})` : (activeDevice.manufacturer || "OpenKey Security");
           if (serialIndicator) serialIndicator.textContent = activeDevice.serial_number ? `(SN: ${activeDevice.serial_number})` : "";
+          updateConnectionUI(true);
           queryDeviceTelemetry(activeDevice.path);
         } else {
           activeDevice = null;
@@ -934,6 +1060,7 @@ function scanConnectedDevices() {
           if (portIndicator) portIndicator.textContent = "Insert OpenKey USB";
           if (serialIndicator) serialIndicator.textContent = "";
           updateGaugeUI(false);
+          updateConnectionUI(false);
         }
       })
       .catch((err) => {
@@ -943,6 +1070,7 @@ function scanConnectedDevices() {
         if (portIndicator) portIndicator.textContent = String(err);
         if (serialIndicator) serialIndicator.textContent = "";
         updateGaugeUI(false);
+        updateConnectionUI(false);
       });
   } else {
     // Browser Web Serial Mode
@@ -951,6 +1079,7 @@ function scanConnectedDevices() {
       if (statusIndicator) statusIndicator.textContent = activeDevice.product || "OpenKey ESP32-S3";
       if (portIndicator) portIndicator.textContent = "Connected via Web Serial (COM13)";
       if (serialIndicator) serialIndicator.textContent = activeDevice.serial_number ? `(SN: ${activeDevice.serial_number})` : "";
+      updateConnectionUI(true);
       queryDeviceTelemetry(activeDevice.path);
     } else {
       activeDevice = null;
@@ -959,6 +1088,7 @@ function scanConnectedDevices() {
       if (portIndicator) portIndicator.textContent = isWebSerialSupported() ? "Click to Authorise OpenKey (COM13)" : "Web Serial not supported in this browser";
       if (serialIndicator) serialIndicator.textContent = "";
       updateGaugeUI(false);
+      updateConnectionUI(false);
     }
   }
 }
@@ -993,12 +1123,36 @@ function queryDeviceTelemetry(devicePath) {
       if (passkeyCapEl) passkeyCapEl.textContent = `${storedKeysCount} / 1,000`;
 
       const pinRetriesEl = document.getElementById("pin-retries-hint");
-      if (pinRetriesEl) pinRetriesEl.textContent = `${status.pin_retries} retries remaining`;
-
+      const inputProfilePin = document.getElementById("input-profile-pin");
+      const profilePinHint = document.getElementById("profile-pin-hint");
       const pinStatusPill = document.getElementById("pin-status-pill");
-      if (pinStatusPill) {
-        pinStatusPill.textContent = pinConfigured ? "PIN Configured" : "No PIN Set";
-        pinStatusPill.className = pinConfigured ? "badge badge-emerald" : "badge badge-info";
+
+      if (!pinConfigured) {
+        if (pinStatusPill) {
+          pinStatusPill.textContent = "No PIN Set";
+          pinStatusPill.className = "badge badge-info";
+        }
+        if (pinRetriesEl) pinRetriesEl.textContent = "Unconfigured";
+        if (inputProfilePin) inputProfilePin.placeholder = "PIN not set (Direct sync active)";
+        if (profilePinHint) profilePinHint.textContent = "No PIN configured on device. Profile will sync directly or via button touch.";
+      } else {
+        if (status.pin_retries === 0) {
+          if (pinStatusPill) {
+            pinStatusPill.textContent = "PIN Locked";
+            pinStatusPill.className = "badge badge-danger";
+          }
+          if (pinRetriesEl) pinRetriesEl.textContent = "0 retries remaining (Locked)";
+          if (inputProfilePin) inputProfilePin.placeholder = "PIN Locked - Press key button to sync";
+          if (profilePinHint) profilePinHint.textContent = "PIN is locked out (0 retries). Leave blank and touch the key's BOOT button when prompted, or Factory Reset below.";
+        } else {
+          if (pinStatusPill) {
+            pinStatusPill.textContent = "PIN Configured";
+            pinStatusPill.className = "badge badge-emerald";
+          }
+          if (pinRetriesEl) pinRetriesEl.textContent = `${status.pin_retries} retries remaining`;
+          if (inputProfilePin) inputProfilePin.placeholder = "Device PIN (or leave blank to touch button)";
+          if (profilePinHint) profilePinHint.textContent = "Enter your PIN or leave blank to authorize via key BOOT button.";
+        }
       }
     })
     .catch(err => {

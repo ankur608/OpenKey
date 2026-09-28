@@ -455,24 +455,40 @@ static void process_assembled_message(CtapChannel *chan) {
                     return;
                 }
 
-                case 0x03: { // VENDOR_CMD_SET_STEALTH_MODE (Feature 6)
-                    uint8_t mode = 0;
+                case 0x03: { // VENDOR_CMD_SET_STEALTH_MODE (Feature 6 & AAGUID Profile)
+                    if (payload_len < 1) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
+                        return;
+                    }
+                    // Profile/mode is always the final byte of the payload
+                    uint8_t mode = payload[payload_len - 1];
+                    bool authorized = false;
+
                     if (OpenKey::Storage::get_vault().is_pin_set()) {
-                        if (payload_len < 17) {
-                            send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
-                            return;
+                        // If PIN hash was provided (16 bytes) and retries > 0, attempt verification
+                        if (payload_len >= 17) {
+                            if (OpenKey::Storage::get_vault().verify_pin(payload, 16)) {
+                                authorized = true;
+                            }
                         }
-                        if (!OpenKey::Storage::get_vault().verify_pin(payload, 16)) {
-                            send_ctaphid_error(chan->cid, CTAP2_ERR_PIN_INVALID);
-                            return;
+
+                        // If PIN verification failed or was not provided, allow Physical User Presence (UP button touch)
+                        if (!authorized) {
+                            if (OpenKey::Peripherals::get_peripherals().verify_user_presence(keepalive_sender, chan->cid, 15000)) {
+                                authorized = true;
+                            } else {
+                                send_ctaphid_error(chan->cid, (payload_len >= 17 && OpenKey::Storage::get_vault().get_pin_retries() == 0) ? CTAP2_ERR_PIN_BLOCKED : CTAP2_ERR_ACTION_TIMEOUT);
+                                return;
+                            }
                         }
-                        mode = payload[16];
                     } else {
-                        if (payload_len < 1) {
-                            send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
-                            return;
-                        }
-                        mode = payload[0];
+                        // No PIN configured: directly authorized
+                        authorized = true;
+                    }
+
+                    if (!authorized) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_NOT_ALLOWED);
+                        return;
                     }
 
                     OpenKey::Storage::get_vault().set_stealth_mode(mode);
@@ -489,6 +505,52 @@ static void process_assembled_message(CtapChannel *chan) {
                     resp_buf[0] = 0x00;
                     resp_buf[1] = OpenKey::Storage::get_vault().get_stealth_mode();
                     send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 2);
+                    return;
+                }
+
+                case 0x04: { // VENDOR_CMD_SET_PIN
+                    // Enforce physical user presence touch on BOOT button
+                    if (!OpenKey::Peripherals::get_peripherals().verify_user_presence(keepalive_sender, chan->cid, 15000)) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_ACTION_TIMEOUT);
+                        return;
+                    }
+                    if (payload_len < 32) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
+                        return;
+                    }
+                    OpenKey::Storage::get_vault().set_pin(payload, 4);
+
+                    for (int i = 0; i < 3; i++) {
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::SUCCESS_GREEN);
+                        delay(70);
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::OFF);
+                        delay(70);
+                    }
+                    OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
+
+                    resp_buf[0] = 0x00;
+                    send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 1);
+                    return;
+                }
+
+                case 0x05: { // VENDOR_CMD_FACTORY_RESET
+                    // Enforce physical user presence touch on BOOT button
+                    if (!OpenKey::Peripherals::get_peripherals().verify_user_presence(keepalive_sender, chan->cid, 15000)) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_ACTION_TIMEOUT);
+                        return;
+                    }
+                    OpenKey::Storage::get_vault().factory_reset();
+
+                    for (int i = 0; i < 4; i++) {
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::WIPE_WHITE);
+                        delay(80);
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::OFF);
+                        delay(80);
+                    }
+                    OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
+
+                    resp_buf[0] = 0x00;
+                    send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 1);
                     return;
                 }
 
