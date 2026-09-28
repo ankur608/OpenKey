@@ -54,6 +54,7 @@ struct CtapChannel {
     uint8_t seq;
     uint32_t last_activity;
     uint8_t buffer[1280]; // Max CTAP message buffer with VAPT safe bounds
+    bool is_serial;       // Indicates packet received over USB CDC Serial
     bool active;
 };
 
@@ -62,7 +63,7 @@ static CtapChannel channels[MAX_CONCURRENT_CHANNELS];
 static uint32_t next_dynamic_cid = 0x00010001;
 
 // Forward declaration of packet processor
-void process_incoming_hid_packet(const uint8_t *packet_64b);
+void process_incoming_hid_packet(const uint8_t *packet_64b, bool from_serial = false);
 
 static QueueHandle_t hid_rx_queue = NULL;
 
@@ -191,6 +192,7 @@ static CtapChannel* get_channel(uint32_t cid, bool allocate = false) {
         channels[evict_idx].received_len = 0;
         channels[evict_idx].total_len = 0;
         channels[evict_idx].seq = 0;
+        channels[evict_idx].is_serial = false;
         return &channels[evict_idx];
     }
 
@@ -198,10 +200,16 @@ static CtapChannel* get_channel(uint32_t cid, bool allocate = false) {
 }
 
 /**
- * @brief Send 64-byte raw HID report packet over USB IN endpoint
+ * @brief Send 64-byte raw packet over USB HID IN endpoint or USB CDC Serial
  */
-static void send_raw_hid_packet(const uint8_t *packet_64b) {
-    fido_device.send_report(packet_64b, HID_REPORT_SIZE);
+static void send_raw_packet_for_cid(uint32_t cid, const uint8_t *packet_64b) {
+    CtapChannel *chan = get_channel(cid, false);
+    if (chan && chan->is_serial) {
+        Serial.write(packet_64b, HID_REPORT_SIZE);
+        Serial.flush();
+    } else {
+        fido_device.send_report(packet_64b, HID_REPORT_SIZE);
+    }
 }
 
 /**
@@ -227,7 +235,7 @@ static void send_ctaphid_response(uint32_t cid, uint8_t cmd, const uint8_t *payl
         memcpy(packet + 7, payload, chunk);
         sent += chunk;
     }
-    send_raw_hid_packet(packet);
+    send_raw_packet_for_cid(cid, packet);
 
     // CONT frames: 4B CID || 1B SEQ (0x00..0x7F) || 59B data
     uint8_t seq = 0;
@@ -243,7 +251,7 @@ static void send_ctaphid_response(uint32_t cid, uint8_t cmd, const uint8_t *payl
         memcpy(packet + 5, payload + sent, chunk);
         sent += chunk;
 
-        send_raw_hid_packet(packet);
+        send_raw_packet_for_cid(cid, packet);
         OpenKey::Security::secure_wipe(packet, sizeof(packet));
     }
     OpenKey::Security::secure_wipe(packet, sizeof(packet));
@@ -301,7 +309,10 @@ static void process_assembled_message(CtapChannel *chan) {
 
             // Register newly allocated CID
             CtapChannel *new_chan = get_channel(assigned_cid, true);
-            if (new_chan) new_chan->last_activity = millis();
+            if (new_chan) {
+                new_chan->last_activity = millis();
+                new_chan->is_serial = chan->is_serial;
+            }
 
             send_ctaphid_response(chan->cid, CTAPHID_INIT, init_resp, sizeof(init_resp));
             break;
@@ -488,9 +499,9 @@ static void process_assembled_message(CtapChannel *chan) {
 }
 
 /**
- * @brief Dispatcher for raw 64-byte CTAPHID packets from USB OUT endpoint
+ * @brief Dispatcher for raw 64-byte CTAPHID packets from USB OUT endpoint or USB CDC Serial
  */
-void process_incoming_hid_packet(const uint8_t *packet_64b) {
+void process_incoming_hid_packet(const uint8_t *packet_64b, bool from_serial) {
     if (!packet_64b) return;
 
     // Extract 4-byte Channel ID (CID)
@@ -522,6 +533,7 @@ void process_incoming_hid_packet(const uint8_t *packet_64b) {
             return;
         }
 
+        chan->is_serial = from_serial;
         chan->cmd = cmd;
         chan->total_len = bcnt;
         chan->received_len = 0;
@@ -550,6 +562,7 @@ void process_incoming_hid_packet(const uint8_t *packet_64b) {
             return;
         }
 
+        chan->is_serial = from_serial;
         chan->seq++;
         chan->last_activity = millis();
 
@@ -569,6 +582,7 @@ void process_incoming_hid_packet(const uint8_t *packet_64b) {
  */
 void setup() {
     Serial.begin(115200);
+    Serial.setTimeout(10);
     delay(100);
 
     // 0. Air-Gapped Master Factory Wipe Check (Feature 8):
@@ -631,8 +645,18 @@ void loop() {
     // 2. Process incoming 64-byte USB HID report frames from FreeRTOS queue with auto-wipe
     uint8_t packet[HID_REPORT_SIZE];
     if (hid_rx_queue && xQueueReceive(hid_rx_queue, packet, 0) == pdTRUE) {
-        process_incoming_hid_packet(packet);
+        process_incoming_hid_packet(packet, false);
         OpenKey::Security::secure_wipe(packet, sizeof(packet));
     }
+
+    // 3. Process incoming 64-byte CTAPHID frames from Serial CDC (Desktop Companion)
+    if (Serial.available() >= HID_REPORT_SIZE) {
+        size_t n = Serial.readBytes(packet, HID_REPORT_SIZE);
+        if (n == HID_REPORT_SIZE) {
+            process_incoming_hid_packet(packet, true);
+        }
+        OpenKey::Security::secure_wipe(packet, sizeof(packet));
+    }
+
     delay(1);
 }

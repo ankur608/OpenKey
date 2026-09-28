@@ -1,7 +1,22 @@
 // OpenKey Desktop Companion - Interactive Frontend Logic
 // Complete FIDO2 & WebAuthn Security Engine Management
 
-const tauri = window.__TAURI__ ? window.__TAURI__.tauri : null;
+function getTauriInvoke() {
+  if (window.__TAURI__ && typeof window.__TAURI__.invoke === "function") {
+    return window.__TAURI__.invoke;
+  }
+  if (window.__TAURI__ && window.__TAURI__.tauri && typeof window.__TAURI__.tauri.invoke === "function") {
+    return window.__TAURI__.tauri.invoke;
+  }
+  return null;
+}
+
+const invoke = (cmd, args) => {
+  const fn = getTauriInvoke();
+  return fn ? fn(cmd, args) : Promise.reject(new Error("Tauri IPC not available"));
+};
+
+const isTauriAvailable = () => getTauriInvoke() !== null;
 
 // Application State
 let activeDevice = null;
@@ -280,12 +295,13 @@ function setupEventListeners() {
   const btnWink = document.getElementById("btn-wink");
   if (btnWink) {
     btnWink.addEventListener("click", () => {
-      if (tauri && activeDevice) {
-        tauri.invoke("wink_device", { devicePath: activeDevice.path })
-          .then(() => showToast("Identifying OpenKey..."))
+      if (isTauriAvailable() && activeDevice) {
+        showToast("Sending Identify command to OpenKey...");
+        invoke("wink_device", { devicePath: activeDevice.path })
+          .then(() => showToast("Identify pulse sent to hardware!"))
           .catch(err => showToast("Identify Key failed: " + err));
       } else {
-        showToast("Identifying OpenKey...");
+        showToast("Identify Key: No active OpenKey connected");
       }
     });
   }
@@ -300,9 +316,9 @@ function setupEventListeners() {
       const profileVal = parseInt(selectedRadio.value, 10);
       const pin = document.getElementById("input-profile-pin").value || "";
 
-      if (tauri && activeDevice) {
+      if (isTauriAvailable() && activeDevice) {
         showToast(`Applying AAGUID Profile ${profileVal}...`);
-        tauri.invoke("set_aaguid_profile", {
+        invoke("set_aaguid_profile", {
           devicePath: activeDevice.path,
           pin: pin,
           profile: profileVal
@@ -317,11 +333,7 @@ function setupEventListeners() {
           alert("Failed to update AAGUID Profile: " + err);
         });
       } else {
-        // Mock preview
-        currentProfile = profileVal;
-        updateAAGUIDProfileUI(profileVal);
-        showToast(`AAGUID Profile ${profileVal} active (${AAGUID_MAP[profileVal].name})`);
-        document.getElementById("input-profile-pin").value = "";
+        alert("Please connect your OpenKey hardware first.");
       }
     });
   }
@@ -357,9 +369,9 @@ function setupEventListeners() {
         return;
       }
 
-      if (tauri && activeDevice) {
+      if (isTauriAvailable() && activeDevice) {
         showToast("Waiting for physical touch verification on BOOT button (GPIO 0)...");
-        tauri.invoke("provision_bip39_seed", {
+        invoke("provision_bip39_seed", {
           devicePath: activeDevice.path,
           pin: pin,
           words: currentMnemonic,
@@ -373,10 +385,7 @@ function setupEventListeners() {
         })
         .catch(err => alert("Provisioning failed: " + err));
       } else {
-        // Mock feedback
-        seedConfigured = true;
-        updateVaultStatusUI(true, "Configured & Armed");
-        showToast("Seed flashed to OpenKey NVS (Physical touch verified)");
+        alert("Please connect your OpenKey hardware first.");
       }
     });
   }
@@ -395,8 +404,8 @@ function setupEventListeners() {
         return;
       }
 
-      if (tauri) {
-        tauri.invoke("validate_bip39_words", { words })
+      if (isTauriAvailable()) {
+        invoke("validate_bip39_words", { words })
           .then(() => {
             badge.textContent = "✓ Checksum Valid (BIP-39 OK)";
             badge.className = "badge badge-emerald";
@@ -425,9 +434,9 @@ function setupEventListeners() {
         return;
       }
 
-      if (tauri && activeDevice) {
+      if (isTauriAvailable() && activeDevice) {
         showToast("Waiting for physical touch on BOOT button...");
-        tauri.invoke("provision_bip39_seed", {
+        invoke("provision_bip39_seed", {
           devicePath: activeDevice.path,
           pin: pin,
           words: words,
@@ -441,9 +450,7 @@ function setupEventListeners() {
         })
         .catch(err => alert("Restore failed: " + err));
       } else {
-        seedConfigured = true;
-        updateVaultStatusUI(true, "Restored & Armed");
-        showToast("Disaster Recovery Complete! Seed restored.");
+        alert("Please connect your OpenKey hardware first.");
       }
     });
   }
@@ -533,15 +540,15 @@ function scanConnectedDevices() {
   const serialIndicator = document.getElementById("device-serial-text");
   const dotIndicator = document.getElementById("connection-status-dot");
 
-  if (tauri) {
-    tauri.invoke("scan_devices")
+  if (isTauriAvailable()) {
+    invoke("scan_devices")
       .then(devices => {
         if (devices && devices.length > 0) {
           activeDevice = devices[0];
           // STRICT GREEN when connected
           if (dotIndicator) dotIndicator.className = "status-dot connected";
-          if (statusIndicator) statusIndicator.textContent = "OpenKey";
-          if (portIndicator) portIndicator.textContent = activeDevice.manufacturer || "OpenKey Security";
+          if (statusIndicator) statusIndicator.textContent = activeDevice.product || "OpenKey";
+          if (portIndicator) portIndicator.textContent = activeDevice.path ? `${activeDevice.manufacturer} (${activeDevice.path})` : (activeDevice.manufacturer || "OpenKey Security");
           if (serialIndicator) serialIndicator.textContent = activeDevice.serial_number ? `(SN: ${activeDevice.serial_number})` : "";
           queryDeviceTelemetry(activeDevice.path);
         } else {
@@ -554,32 +561,27 @@ function scanConnectedDevices() {
           updateGaugeUI(false);
         }
       })
-      .catch(() => {
+      .catch((err) => {
         activeDevice = null;
         if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-        if (statusIndicator) statusIndicator.textContent = "No Device Detected";
-        if (portIndicator) portIndicator.textContent = "Insert OpenKey USB";
+        if (statusIndicator) statusIndicator.textContent = "Scan Error";
+        if (portIndicator) portIndicator.textContent = String(err);
         if (serialIndicator) serialIndicator.textContent = "";
         updateGaugeUI(false);
       });
   } else {
-    // Browser Mock Mode (Connected simulation: 2 sample credentials from table)
-    if (dotIndicator) dotIndicator.className = "status-dot connected";
-    if (statusIndicator) statusIndicator.textContent = "OpenKey";
-    if (portIndicator) portIndicator.textContent = "OpenKey Security";
-    if (serialIndicator) serialIndicator.textContent = "(SN: OK-S30-00000001)";
-    if (storedKeysCount === 0 || storedKeysCount === 150) {
-      storedKeysCount = 2; // webauthn.io and github.com sample keys
-    }
-    updateAAGUIDProfileUI(currentProfile);
-    updateVaultStatusUI(true, "Armed & Provisioned");
-    updateGaugeUI(true);
+    // Browser Preview Mode (Strict Offline Notice unless Tauri is running)
+    if (dotIndicator) dotIndicator.className = "status-dot disconnected";
+    if (statusIndicator) statusIndicator.textContent = "Companion Offline";
+    if (portIndicator) portIndicator.textContent = "Web Browser Mode (OpenKey App Required)";
+    if (serialIndicator) serialIndicator.textContent = "";
+    updateGaugeUI(false);
   }
 }
 
 function queryDeviceTelemetry(devicePath) {
-  if (!tauri) return;
-  tauri.invoke("get_openkey_status", { devicePath })
+  if (!isTauriAvailable()) return;
+  invoke("get_openkey_status", { devicePath })
     .then(status => {
       seedConfigured = status.seed_configured;
       currentProfile = status.aaguid_profile !== undefined ? status.aaguid_profile : (status.stealth_aaguid_mode ? 1 : 0);
@@ -693,8 +695,8 @@ function updateVaultStatusUI(isArmed, detailText) {
 }
 
 function generateInitialSeedWords() {
-  if (tauri) {
-    tauri.invoke("generate_bip39_words")
+  if (isTauriAvailable()) {
+    invoke("generate_bip39_words")
       .then(words => {
         currentMnemonic = words;
         renderSeedWords(words);

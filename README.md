@@ -44,13 +44,13 @@ Precompiled native packages and standalone binaries are available for **Windows*
 
 | Operating System | Package Type | Architecture | Direct Download |
 | :--- | :--- | :--- | :--- |
-| **Windows** | Native Installer (`.msi`) | x64 | [⬇️ **Download `OpenKey.Manager.msi`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/OpenKey.Manager_1.0.0_x64_en-US.msi) |
-| **macOS** | Disk Image (`.dmg`) | Apple Silicon | [⬇️ **Download `OpenKey.Manager.dmg`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/OpenKey.Manager_1.0.0_aarch64.dmg) |
-| **Linux** | Universal Binary (`.AppImage`) | x64 / amd64 | [⬇️ **Download `open-key-manager.AppImage`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/open-key-manager_1.0.0_amd64.AppImage) |
-| **Linux** | Debian / Ubuntu (`.deb`) | x64 / amd64 | [⬇️ **Download `open-key-manager.deb`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.2/open-key-manager_1.0.0_amd64.deb) |
+| **Windows** | Native Installer (`.msi`) | x64 | [⬇️ **Download `OpenKey.Manager.msi`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.3/OpenKey.Manager_1.0.3_x64_en-US.msi) |
+| **macOS** | Disk Image (`.dmg`) | Apple Silicon | [⬇️ **Download `OpenKey.Manager.dmg`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.3/OpenKey.Manager_1.0.3_aarch64.dmg) |
+| **Linux** | Universal Binary (`.AppImage`) | x64 / amd64 | [⬇️ **Download `open-key-manager.AppImage`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.3/open-key-manager_1.0.3_amd64.AppImage) |
+| **Linux** | Debian / Ubuntu (`.deb`) | x64 / amd64 | [⬇️ **Download `open-key-manager.deb`**](https://github.com/ankur608/OpenKey/releases/download/v1.0.3/open-key-manager_1.0.3_amd64.deb) |
 
 > [!TIP]
-> You can also download raw standalone packages (including standalone `.exe` and `.app` bundles) directly from the [GitHub Actions Artifacts](https://github.com/ankur608/OpenKey/actions/runs/35674972353).
+> You can also download raw standalone packages (including standalone `.exe` and `.app` bundles) directly from the [GitHub Actions Artifacts](https://github.com/ankur608/OpenKey/actions).
 
 ### Quick Install Guide
 
@@ -64,8 +64,8 @@ Open the `.dmg` file and drag `OpenKey Manager` into `/Applications`.
 #### Linux
 - **AppImage**: Make executable and run:
   ```bash
-  chmod +x open-key-manager_1.0.0_amd64.AppImage
-  ./open-key-manager_1.0.0_amd64.AppImage
+  chmod +x open-key-manager_1.0.3_amd64.AppImage
+  ./open-key-manager_1.0.3_amd64.AppImage
   ```
 - **Debian / Ubuntu**: Install with dpkg:
   ```bash
