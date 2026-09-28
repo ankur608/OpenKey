@@ -62,42 +62,53 @@ async function writeExactBytes(bytes) {
   }
 }
 
-async function readExactBytes(numBytes, timeoutMs = 15000) {
-  if (!webSerialPort || !webSerialPort.readable) {
-    throw new Error("OpenKey serial port not readable");
-  }
-  const startTime = Date.now();
-  const reader = webSerialPort.readable.getReader();
+let serialReader = null;
+let serialReadLoopRunning = false;
+
+async function startSerialReadLoop() {
+  if (!webSerialPort || !webSerialPort.readable) return;
+  if (serialReadLoopRunning) return;
+  serialReadLoopRunning = true;
 
   try {
-    while (serialReadBuffer.length < numBytes) {
-      if (Date.now() - startTime > timeoutMs) {
-        throw new Error("Timeout waiting for serial bytes from OpenKey");
-      }
-      const readPromise = reader.read();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), 1000)
-      );
-      try {
-        const { value, done } = await Promise.race([readPromise, timeoutPromise]);
-        if (done) break;
-        if (value) {
-          for (let i = 0; i < value.length; i++) {
-            serialReadBuffer.push(value[i]);
-          }
+    serialReader = webSerialPort.readable.getReader();
+    while (serialReadLoopRunning && webSerialPort && webSerialPort.readable) {
+      const { value, done } = await serialReader.read();
+      if (done) break;
+      if (value) {
+        for (let i = 0; i < value.length; i++) {
+          serialReadBuffer.push(value[i]);
         }
-      } catch (e) {
-        // Chunk timeout, continue waiting
       }
     }
+  } catch (err) {
+    console.warn("Serial read loop closed:", err);
   } finally {
-    reader.releaseLock();
+    serialReadLoopRunning = false;
+    if (serialReader) {
+      try { serialReader.releaseLock(); } catch (_) {}
+      serialReader = null;
+    }
   }
+}
 
-  if (serialReadBuffer.length < numBytes) {
-    throw new Error("Timeout waiting for complete 64-byte frame from OpenKey");
+function stopSerialReadLoop() {
+  serialReadLoopRunning = false;
+  if (serialReader) {
+    try { serialReader.cancel(); } catch (_) {}
+    try { serialReader.releaseLock(); } catch (_) {}
+    serialReader = null;
   }
+}
 
+async function readExactBytes(numBytes, timeoutMs = 25000) {
+  const startTime = Date.now();
+  while (serialReadBuffer.length < numBytes) {
+    if (Date.now() - startTime > timeoutMs) {
+      throw new Error("Timeout waiting for serial bytes from OpenKey");
+    }
+    await new Promise(r => setTimeout(r, 10));
+  }
   const result = new Uint8Array(serialReadBuffer.slice(0, numBytes));
   serialReadBuffer = serialReadBuffer.slice(numBytes);
   return result;
@@ -106,12 +117,14 @@ async function readExactBytes(numBytes, timeoutMs = 15000) {
 async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
   const waitStart = Date.now();
   while (isSerialBusy) {
-    if (Date.now() - waitStart > 6000) break;
+    if (Date.now() - waitStart > 8000) break;
     await new Promise(r => setTimeout(r, 40));
   }
   isSerialBusy = true;
 
   try {
+    serialReadBuffer = []; // Clear residual bytes before sending command
+
     const totalLen = payload.length;
     // 1. INIT frame: 4B CID || (cmd | 0x80) || 2B BCNT || up to 57B payload
     const initPkt = new Uint8Array(64);
@@ -147,13 +160,13 @@ async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
     }
 
     // 3. Receive Response (reassemble INIT + CONT)
-    const startTime = Date.now();
+    let startTime = Date.now();
     let expectedTotal = null;
     let expectedSeq = 0;
     const respPayload = [];
 
-    while (Date.now() - startTime < 16000) {
-      const pkt = await readExactBytes(64, 15000);
+    while (Date.now() - startTime < 30000) {
+      const pkt = await readExactBytes(64, 25000);
       const pktCid = ((pkt[0] << 24) | (pkt[1] << 16) | (pkt[2] << 8) | pkt[3]) >>> 0;
       if (pktCid !== cid) continue;
 
@@ -161,13 +174,17 @@ async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
       if (cmdOrSeq & 0x80) {
         // INIT frame
         const respCmd = cmdOrSeq & 0x7F;
-        if (respCmd === 0x3B) continue; // Keepalive (waiting for physical touch)
+        if (respCmd === 0x3B) {
+          // Keepalive packet received: device is actively waiting for user touch!
+          startTime = Date.now(); // reset timer so user has ample time
+          continue;
+        }
         if (respCmd === 0x3F) {
           const err = pkt[7];
           let errMsg = `CTAPHID error: 0x${err.toString(16).padStart(2, '0')}`;
           if (err === 0x31) errMsg = "Invalid PIN (or leave blank & touch BOOT button on key to authorize)";
           else if (err === 0x32) errMsg = "PIN Locked (0 retries remaining). Please touch key BOOT button or Factory Reset below.";
-          else if (err === 0x3A) errMsg = "Physical touch timed out (please touch the BOOT button when LED flashes)";
+          else if (err === 0x3A || err === 0x34) errMsg = "Physical touch timed out (please touch the BOOT button when LED flashes)";
           else if (err === 0x3E) errMsg = "Physical button touch required on key to authorize";
           throw new Error(errMsg);
         }
@@ -244,11 +261,13 @@ async function requestWebSerialConnection() {
 
     showToast("Connecting to OpenKey via Web Serial...");
     await webSerialPort.open({ baudRate: 115200 });
+    startSerialReadLoop();
     await webSerialInitHandshake();
     showToast("OpenKey hardware connected & authorised via Web Serial!");
     scanConnectedDevices();
     return true;
   } catch (err) {
+    stopSerialReadLoop();
     if (err.name !== "NotFoundError") {
       alert("Failed to connect OpenKey: " + err.message);
     }
@@ -268,16 +287,19 @@ async function autoCheckWebSerial() {
       webSerialPort = ports[0];
       serialReadBuffer = [];
       await webSerialPort.open({ baudRate: 115200 });
+      startSerialReadLoop();
       await webSerialInitHandshake();
       scanConnectedDevices();
     }
   } catch (e) {
+    stopSerialReadLoop();
     // Port might be in use
   }
 }
 
 if (typeof navigator !== 'undefined' && 'serial' in navigator) {
   navigator.serial.addEventListener('disconnect', () => {
+    stopSerialReadLoop();
     webSerialPort = null;
     isWebSerialActive = false;
     activeDevice = null;
@@ -367,6 +389,16 @@ const invoke = async (cmd, args) => {
       return true;
     }
 
+    case "set_duress_pin": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const hash = await sha256Bytes(args.pin);
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x06, ...hash]));
+      if (resp.length === 0 || resp[0] !== 0x00) {
+        throw new Error("Failed to arm Panic PIN on hardware (touch confirmation timed out)");
+      }
+      return true;
+    }
+
     case "factory_reset_device": {
       if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
       const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x05]));
@@ -377,7 +409,17 @@ const invoke = async (cmd, args) => {
       localStorage.removeItem("openkey_seed_fp");
       localStorage.removeItem("openkey_enrolled_passkeys");
       seedConfigured = false;
+      pinConfigured = false;
+      storedKeysCount = 0;
       renderPasskeyTable();
+      updateVaultStatusUI(false, "Unprovisioned");
+      updateGaugeUI(true);
+      const p1 = document.getElementById("input-new-pin");
+      if (p1) p1.value = "";
+      const p2 = document.getElementById("input-confirm-pin");
+      if (p2) p2.value = "";
+      const pp = document.getElementById("input-profile-pin");
+      if (pp) pp.value = "";
       return true;
     }
 
@@ -1047,9 +1089,20 @@ function setupEventListeners() {
         alert("Panic PIN confirmation mismatch!");
         return;
       }
-      showToast("Feature 1: Anti-coercion Duress Panic PIN armed.");
-      document.getElementById("input-duress-pin").value = "";
-      document.getElementById("input-confirm-duress").value = "";
+      if (!activeDevice) {
+        alert("Please connect your OpenKey first.");
+        return;
+      }
+      showToast("Please touch the BOOT button on OpenKey to arm Duress Panic PIN...");
+      invoke("set_duress_pin", { pin: d1 })
+        .then(() => {
+          showToast("Feature 1: Anti-coercion Duress Panic PIN armed on hardware!");
+          document.getElementById("input-duress-pin").value = "";
+          document.getElementById("input-confirm-duress").value = "";
+        })
+        .catch(err => {
+          alert("Failed to arm Panic PIN: " + err.message);
+        });
     });
   }
 

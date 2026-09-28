@@ -560,6 +560,32 @@ static void process_assembled_message(CtapChannel *chan) {
                     return;
                 }
 
+                case 0x06: { // VENDOR_CMD_SET_DURESS_PIN (Feature 1 Anti-Coercion)
+                    // Enforce physical user presence touch on BOOT button
+                    if (!OpenKey::Peripherals::get_peripherals().verify_user_presence(keepalive_sender, chan->cid, 15000)) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_ACTION_TIMEOUT);
+                        return;
+                    }
+                    if (payload_len < 32) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
+                        return;
+                    }
+                    OpenKey::Storage::get_vault().set_duress_pin(payload);
+
+                    // Warning Red Flash to confirm Panic PIN armed
+                    for (int i = 0; i < 3; i++) {
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::PHISHING_ALERT_RED);
+                        delay(70);
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::OFF);
+                        delay(70);
+                    }
+                    OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
+
+                    resp_buf[0] = 0x00;
+                    send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 1);
+                    return;
+                }
+
                 default:
                     send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_PARAMETER);
                     return;
