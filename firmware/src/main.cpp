@@ -178,7 +178,7 @@ static CtapChannel* get_channel(uint32_t cid, bool allocate = false) {
             evict_idx = i;
             break;
         }
-        if (now - channels[i].last_activity > 1000) {
+        if (now - channels[i].last_activity > 30000) {
             evict_idx = i;
             OpenKey::Security::secure_wipe(channels[i].buffer, sizeof(channels[i].buffer));
             channels[i].active = false;
@@ -274,6 +274,10 @@ static void send_ctaphid_keepalive(uint32_t cid, uint8_t status) {
 }
 
 static void keepalive_sender(uint32_t cid) {
+    CtapChannel *chan = get_channel(cid, false);
+    if (chan) {
+        chan->last_activity = millis();
+    }
     send_ctaphid_keepalive(cid, CTAPHID_STATUS_UPNEEDED);
 }
 

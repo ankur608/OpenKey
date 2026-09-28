@@ -203,10 +203,9 @@ public:
 
         // 0x01: versions array
         enc.write_int(0x01);
-        enc.write_array_header(3);
+        enc.write_array_header(2);
         enc.write_text("U2F_V2");
         enc.write_text("FIDO_2_0");
-        enc.write_text("FIDO_2_1");
 
         // 0x02: extensions array
         enc.write_int(0x02);
@@ -225,9 +224,9 @@ public:
             enc.write_bytes(OPENKEY_AAGUID, 16);
         }
 
-        // 0x04: options map
+        // 0x04: options map (4 standard keys for universal CTAP2 compatibility)
         enc.write_int(0x04);
-        enc.write_map_header(has_pin ? 5 : 4);
+        enc.write_map_header(4);
         enc.write_text("rk");
         enc.write_bool(true); // Resident Keys supported
         enc.write_text("up");
@@ -236,10 +235,6 @@ public:
         enc.write_bool(false); // External Security Key token
         enc.write_text("clientPin");
         enc.write_bool(has_pin); // FALSE = capability exists, but no PIN set. TRUE = PIN configured
-        if (has_pin) {
-            enc.write_text("pinUvAuthToken");
-            enc.write_bool(true);
-        }
 
         // 0x05: maxMsgSize (1200 bytes)
         enc.write_int(0x05);
@@ -284,10 +279,19 @@ public:
 
         // SubCommand is key 0x02 in CBOR map
         uint8_t sub_cmd = 0;
-        for (size_t i = 0; i + 1 < in_len; i++) {
-            if (in_payload[i] == 0x02 && in_payload[i + 1] <= 0x08) {
-                sub_cmd = in_payload[i + 1];
-                break;
+        if (in_len >= 5 && in_payload[1] == 0x01 && in_payload[3] == 0x02) {
+            sub_cmd = in_payload[4];
+        } else if (in_len >= 3 && in_payload[1] == 0x02) {
+            sub_cmd = in_payload[2];
+        } else {
+            for (size_t i = 0; i + 1 < in_len; i++) {
+                if (in_payload[i] == 0x02 && in_payload[i + 1] >= 0x01 && in_payload[i + 1] <= 0x0A) {
+                    if (i > 0 && in_payload[i - 1] == 0x01 && (i == 1 || in_payload[i - 2] >= 0xA0)) {
+                        continue;
+                    }
+                    sub_cmd = in_payload[i + 1];
+                    break;
+                }
             }
         }
 
@@ -470,7 +474,8 @@ public:
                 return CTAP1_ERR_SUCCESS;
             }
 
-            case 0x05: { // getPinUvAuthTokenUsingPin
+            case 0x05:   // getPinToken (CTAP 2.0)
+            case 0x09: { // getPinUvAuthTokenUsingPinWithPermissions (CTAP 2.1)
                 if (!pin_key_valid) return CTAP2_ERR_INVALID_PARAMETER;
 
                 uint8_t peer_x[32], peer_y[32];
@@ -497,6 +502,7 @@ public:
                         break;
                     }
                 }
+                if (!found_old) return CTAP2_ERR_MISSING_PARAMETER;
 
                 uint8_t z[32], shared_key[32];
                 if (!pin_ecdh_key.compute_ecdh_shared_secret_raw(peer_x, peer_y, z)) {
@@ -504,12 +510,10 @@ public:
                 }
                 OpenKey::Crypto::sha256(z, 32, shared_key);
 
-                if (found_old) {
-                    uint8_t old_pin_hash[16];
-                    OpenKey::Crypto::aes_256_cbc_decrypt_zero_iv(shared_key, pin_hash_enc, 16, old_pin_hash);
-                    if (!OpenKey::Storage::get_vault().verify_pin(old_pin_hash, 16)) {
-                        return CTAP2_ERR_PIN_INVALID;
-                    }
+                uint8_t old_pin_hash[16];
+                OpenKey::Crypto::aes_256_cbc_decrypt_zero_iv(shared_key, pin_hash_enc, 16, old_pin_hash);
+                if (!OpenKey::Storage::get_vault().verify_pin(old_pin_hash, 16)) {
+                    return CTAP2_ERR_PIN_INVALID;
                 }
 
                 // Generate random 32-byte pin_token
@@ -895,20 +899,15 @@ public:
             case CTAP2_CMD_GET_ASSERTION:
                 return handle_get_assertion(in_payload, in_len, out_buf, out_len, max_out, keepalive_cb, cid);
             case CTAP2_CMD_RESET: {
-                // FIDO2 / CTAP 2.1 Section 6.6:
-                // 1. Reset command MUST only be accepted within power-up window (15s after USB insertion)
-                if (millis() > 15000) {
-                    *out_len = 0;
-                    return CTAP2_ERR_NOT_ALLOWED;
-                }
-
-                // 2. Authenticator MUST enforce physical user presence (two touches or sustained 2.5s hold)
-                if (!OpenKey::Peripherals::get_peripherals().verify_user_presence_reset(keepalive_cb, cid, 15000)) {
+                // FIDO2 / CTAP2 Authenticator Reset:
+                // Enforce physical user presence verification via GPIO 0 Boot button with keepalives
+                // Pulses Challenge Blue with continuous CTAPHID_KEEPALIVE packets to host
+                if (!OpenKey::Peripherals::get_peripherals().verify_user_presence(keepalive_cb, cid, 15000)) {
                     *out_len = 0;
                     return CTAP2_ERR_ACTION_TIMEOUT;
                 }
 
-                // 3. Physical touch confirmed! Execute factory reset of credentials and PIN
+                // Physical touch confirmed! Execute full factory reset of credentials and PIN
                 OpenKey::Storage::get_vault().factory_reset();
                 *out_len = 0;
                 return CTAP1_ERR_SUCCESS;
