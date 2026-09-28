@@ -894,10 +894,25 @@ public:
                 return handle_make_credential(in_payload, in_len, out_buf, out_len, max_out, keepalive_cb, cid);
             case CTAP2_CMD_GET_ASSERTION:
                 return handle_get_assertion(in_payload, in_len, out_buf, out_len, max_out, keepalive_cb, cid);
-            case CTAP2_CMD_RESET:
+            case CTAP2_CMD_RESET: {
+                // FIDO2 / CTAP 2.1 Section 6.6:
+                // 1. Reset command MUST only be accepted within power-up window (15s after USB insertion)
+                if (millis() > 15000) {
+                    *out_len = 0;
+                    return CTAP2_ERR_NOT_ALLOWED;
+                }
+
+                // 2. Authenticator MUST enforce physical user presence (two touches or sustained 2.5s hold)
+                if (!OpenKey::Peripherals::get_peripherals().verify_user_presence_reset(keepalive_cb, cid, 15000)) {
+                    *out_len = 0;
+                    return CTAP2_ERR_ACTION_TIMEOUT;
+                }
+
+                // 3. Physical touch confirmed! Execute factory reset of credentials and PIN
                 OpenKey::Storage::get_vault().factory_reset();
                 *out_len = 0;
                 return CTAP1_ERR_SUCCESS;
+            }
             case CTAP2_CMD_CLIENT_PIN:
                 return handle_client_pin(in_payload, in_len, out_buf, out_len, max_out);
             case 0x08: // CTAP2_CMD_GET_NEXT_ASSERTION

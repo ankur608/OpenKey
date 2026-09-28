@@ -195,6 +195,122 @@ public:
     }
 
     /**
+     * @brief High-Assurance User Presence Verification for FIDO2 Factory Reset
+     * Enforces two physical touches (or a sustained 2.5s press) with active CTAPHID_KEEPALIVE keepalives.
+     * Fully compliant with Windows Hello "Touch security key twice within 10 seconds" ceremony.
+     */
+    bool verify_user_presence_reset(void (*keepalive_cb)(uint32_t cid) = nullptr, uint32_t cid = 0,
+                                   uint32_t timeout_ms = 15000) {
+        // Phase 1: Await First Touch (Heartbeat Blue)
+        set_state(LedState::CHALLENGE_BLUE);
+        uint32_t start_time = millis();
+        uint32_t last_keepalive = millis();
+        bool touch1 = false;
+        bool long_press_confirmed = false;
+
+        while (millis() - start_time < timeout_ms) {
+            update();
+
+            // Dispatch CTAPHID_KEEPALIVE to host every 100ms
+            if (keepalive_cb && cid != 0 && (millis() - last_keepalive >= 100)) {
+                last_keepalive = millis();
+                keepalive_cb(cid);
+            }
+
+            if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                delay(20); // Debounce
+                if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                    touch1 = true;
+                    uint32_t press_start = millis();
+                    // Wait for release OR 2.5s hold (instant long-press confirmation)
+                    while (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                        if (keepalive_cb && cid != 0 && (millis() - last_keepalive >= 100)) {
+                            last_keepalive = millis();
+                            keepalive_cb(cid);
+                        }
+                        if (millis() - press_start >= 2500) {
+                            long_press_confirmed = true;
+                            break;
+                        }
+                        delay(10);
+                    }
+                    break;
+                }
+            }
+            delay(5);
+        }
+
+        if (!touch1) {
+            set_state(LedState::ERROR_RED);
+            delay(800);
+            set_state(LedState::STANDBY_GREEN);
+            return false;
+        }
+
+        // If not already authorized via long-press, await Second Touch
+        if (!long_press_confirmed) {
+            // Wait for release if still held
+            while (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                if (keepalive_cb && cid != 0 && (millis() - last_keepalive >= 100)) {
+                    last_keepalive = millis();
+                    keepalive_cb(cid);
+                }
+                delay(10);
+            }
+
+            // Phase 2: Awaiting Second Touch (Rapid Amber Strobe: "Touch once more to confirm")
+            bool touch2 = false;
+            uint32_t phase2_start = millis();
+            const uint32_t PHASE2_TIMEOUT_MS = 8000;
+
+            while (millis() - phase2_start < PHASE2_TIMEOUT_MS) {
+                // 120ms amber strobe
+                bool strobe = (((millis() - phase2_start) / 120) % 2 == 0);
+                set_rgb_explicit(255, 140, 0, strobe ? 120 : 15);
+
+                if (keepalive_cb && cid != 0 && (millis() - last_keepalive >= 100)) {
+                    last_keepalive = millis();
+                    keepalive_cb(cid);
+                }
+
+                if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                    delay(20); // Debounce
+                    if (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                        touch2 = true;
+                        // Wait for release
+                        while (digitalRead(BUTTON_BOOT_PIN) == LOW) {
+                            if (keepalive_cb && cid != 0 && (millis() - last_keepalive >= 100)) {
+                                last_keepalive = millis();
+                                keepalive_cb(cid);
+                            }
+                            delay(10);
+                        }
+                        break;
+                    }
+                }
+                delay(5);
+            }
+
+            if (!touch2) {
+                set_state(LedState::ERROR_RED);
+                delay(800);
+                set_state(LedState::STANDBY_GREEN);
+                return false;
+            }
+        }
+
+        // Factory Reset gesture fully verified! 5 rapid Green confirmation flashes
+        for (int i = 0; i < 5; i++) {
+            set_rgb_explicit(0, 255, 0, 150);
+            delay(70);
+            set_rgb_explicit(0, 0, 0, 0);
+            delay(50);
+        }
+        set_state(LedState::STANDBY_GREEN);
+        return true;
+    }
+
+    /**
      * @brief Air-Gapped Master Factory Wipe: 20-Second Hardware BOOT-Hold Check
      * 
      * Must be called at the very beginning of setup().
