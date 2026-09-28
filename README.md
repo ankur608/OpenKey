@@ -40,6 +40,8 @@ Present version supports the **ESP32-S3** platform, more to be added soon..
 
 ## 📦 Releases & Downloads
 
+#### Web Companion: https://ankur608.github.io/OpenKey
+
 Precompiled native packages and standalone binaries are available for **Windows**, **macOS**, and **Linux** under [GitHub Releases](https://github.com/ankur608/OpenKey/releases).
 
 | Operating System | Package Type | Architecture | Direct Download |
