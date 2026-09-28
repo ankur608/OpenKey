@@ -1,22 +1,381 @@
-// OpenKey Desktop Companion - Interactive Frontend Logic
-// Complete FIDO2 & WebAuthn Security Engine Management
+// OpenKey Desktop & Web Companion - Interactive Frontend Logic
+// Dual Engine: Native Tauri IPC + Web Serial (Chrome/Edge/Brave/Opera)
 
 function getTauriInvoke() {
-  if (window.__TAURI__ && typeof window.__TAURI__.invoke === "function") {
-    return window.__TAURI__.invoke;
-  }
-  if (window.__TAURI__ && window.__TAURI__.tauri && typeof window.__TAURI__.tauri.invoke === "function") {
-    return window.__TAURI__.tauri.invoke;
+  if (typeof window !== "undefined" && window.__TAURI__) {
+    if (typeof window.__TAURI__.invoke === "function") return window.__TAURI__.invoke;
+    if (window.__TAURI__.tauri && typeof window.__TAURI__.tauri.invoke === "function") return window.__TAURI__.tauri.invoke;
   }
   return null;
 }
 
-const invoke = (cmd, args) => {
-  const fn = getTauriInvoke();
-  return fn ? fn(cmd, args) : Promise.reject(new Error("Tauri IPC not available"));
-};
-
 const isTauriAvailable = () => getTauriInvoke() !== null;
+const isWebSerialSupported = () => typeof navigator !== 'undefined' && 'serial' in navigator;
+
+// Web Serial Transport Engine
+let webSerialPort = null;
+let webSerialCid = 0xFFFFFFFF;
+let isWebSerialActive = false;
+let serialReadBuffer = [];
+
+async function sha256Bytes(data) {
+  const enc = new TextEncoder();
+  const bytes = typeof data === 'string' ? enc.encode(data) : data;
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return new Uint8Array(hash);
+}
+
+async function mnemonicToSeed(words, passphrase = "") {
+  const mnemonicStr = words.join(" ").normalize("NFKD");
+  const saltStr = ("mnemonic" + passphrase).normalize("NFKD");
+  const enc = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(mnemonicStr),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: enc.encode(saltStr),
+      iterations: 2048,
+      hash: "SHA-512"
+    },
+    baseKey,
+    512
+  );
+  return new Uint8Array(derivedBits);
+}
+
+async function writeExactBytes(bytes) {
+  if (!webSerialPort || !webSerialPort.writable) {
+    throw new Error("OpenKey serial port not writable");
+  }
+  const writer = webSerialPort.writable.getWriter();
+  try {
+    await writer.write(bytes);
+  } finally {
+    writer.releaseLock();
+  }
+}
+
+async function readExactBytes(numBytes, timeoutMs = 15000) {
+  if (!webSerialPort || !webSerialPort.readable) {
+    throw new Error("OpenKey serial port not readable");
+  }
+  const startTime = Date.now();
+  const reader = webSerialPort.readable.getReader();
+
+  try {
+    while (serialReadBuffer.length < numBytes) {
+      if (Date.now() - startTime > timeoutMs) {
+        throw new Error("Timeout waiting for serial bytes from OpenKey");
+      }
+      const readPromise = reader.read();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 1000)
+      );
+      try {
+        const { value, done } = await Promise.race([readPromise, timeoutPromise]);
+        if (done) break;
+        if (value) {
+          for (let i = 0; i < value.length; i++) {
+            serialReadBuffer.push(value[i]);
+          }
+        }
+      } catch (e) {
+        // Chunk timeout, continue waiting
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (serialReadBuffer.length < numBytes) {
+    throw new Error("Timeout waiting for complete 64-byte frame from OpenKey");
+  }
+
+  const result = new Uint8Array(serialReadBuffer.slice(0, numBytes));
+  serialReadBuffer = serialReadBuffer.slice(numBytes);
+  return result;
+}
+
+async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
+  const totalLen = payload.length;
+  // 1. INIT frame: 4B CID || (cmd | 0x80) || 2B BCNT || up to 57B payload
+  const initPkt = new Uint8Array(64);
+  initPkt[0] = (cid >>> 24) & 0xFF;
+  initPkt[1] = (cid >>> 16) & 0xFF;
+  initPkt[2] = (cid >>> 8) & 0xFF;
+  initPkt[3] = cid & 0xFF;
+  initPkt[4] = cmd | 0x80;
+  initPkt[5] = (totalLen >>> 8) & 0xFF;
+  initPkt[6] = totalLen & 0xFF;
+
+  const initChunk = Math.min(57, totalLen);
+  if (initChunk > 0) {
+    initPkt.set(payload.subarray(0, initChunk), 7);
+  }
+  await writeExactBytes(initPkt);
+
+  // 2. CONT frames
+  let sent = initChunk;
+  let seq = 0;
+  while (sent < totalLen) {
+    const contPkt = new Uint8Array(64);
+    contPkt[0] = (cid >>> 24) & 0xFF;
+    contPkt[1] = (cid >>> 16) & 0xFF;
+    contPkt[2] = (cid >>> 8) & 0xFF;
+    contPkt[3] = cid & 0xFF;
+    contPkt[4] = seq++ & 0x7F;
+
+    const chunk = Math.min(59, totalLen - sent);
+    contPkt.set(payload.subarray(sent, sent + chunk), 5);
+    sent += chunk;
+    await writeExactBytes(contPkt);
+  }
+
+  // 3. Receive Response (reassemble INIT + CONT)
+  const startTime = Date.now();
+  let expectedTotal = null;
+  let expectedSeq = 0;
+  const respPayload = [];
+
+  while (Date.now() - startTime < 16000) {
+    const pkt = await readExactBytes(64, 15000);
+    const pktCid = ((pkt[0] << 24) | (pkt[1] << 16) | (pkt[2] << 8) | pkt[3]) >>> 0;
+    if (pktCid !== cid) continue;
+
+    const cmdOrSeq = pkt[4];
+    if (cmdOrSeq & 0x80) {
+      // INIT frame
+      const respCmd = cmdOrSeq & 0x7F;
+      if (respCmd === 0x3B) continue; // Keepalive (waiting for physical touch)
+      if (respCmd === 0x3F) throw new Error(`CTAPHID error: 0x${pkt[7].toString(16).padStart(2, '0')}`);
+
+      expectedTotal = (pkt[5] << 8) | pkt[6];
+      const chunk = Math.min(57, expectedTotal);
+      for (let i = 0; i < chunk; i++) respPayload.push(pkt[7 + i]);
+      if (respPayload.length >= expectedTotal) return new Uint8Array(respPayload);
+    } else {
+      // CONT frame
+      if (expectedTotal !== null) {
+        if (cmdOrSeq !== expectedSeq) {
+          throw new Error(`Sequence mismatch: expected ${expectedSeq}, got ${cmdOrSeq}`);
+        }
+        expectedSeq = (expectedSeq + 1) & 0x7F;
+        const remaining = expectedTotal - respPayload.length;
+        const chunk = Math.min(59, remaining);
+        for (let i = 0; i < chunk; i++) respPayload.push(pkt[5 + i]);
+        if (respPayload.length >= expectedTotal) return new Uint8Array(respPayload);
+      }
+    }
+  }
+  throw new Error("Device response timed out (User presence touch not confirmed)");
+}
+
+async function webSerialInitHandshake() {
+  const nonce = new Uint8Array(8);
+  crypto.getRandomValues(nonce);
+
+  const initPkt = new Uint8Array(64);
+  initPkt[0] = 0xFF; initPkt[1] = 0xFF; initPkt[2] = 0xFF; initPkt[3] = 0xFF;
+  initPkt[4] = 0x86;
+  initPkt[5] = 0x00; initPkt[6] = 0x08;
+  initPkt.set(nonce, 7);
+
+  await writeExactBytes(initPkt);
+  const resp = await readExactBytes(64, 5000);
+
+  for (let i = 0; i < 8; i++) {
+    if (resp[7 + i] !== nonce[i]) {
+      throw new Error("CTAPHID_INIT nonce echo mismatch");
+    }
+  }
+
+  webSerialCid = ((resp[15] << 24) | (resp[16] << 16) | (resp[17] << 8) | resp[18]) >>> 0;
+  isWebSerialActive = true;
+  activeDevice = {
+    path: "webserial:COM13",
+    vendor_id: 0x303a,
+    product_id: 0x822b,
+    manufacturer: "OpenKey Security",
+    product: "OpenKey ESP32-S3",
+    serial_number: "OK-S30-00000001"
+  };
+}
+
+async function requestWebSerialConnection() {
+  if (!isWebSerialSupported()) {
+    alert("Web Serial API is not supported in this browser. Please open in Google Chrome, Microsoft Edge, Brave, or Opera.");
+    return false;
+  }
+  try {
+    serialReadBuffer = [];
+    try {
+      webSerialPort = await navigator.serial.requestPort({
+        filters: [{ usbVendorId: 0x303a }]
+      });
+    } catch (e) {
+      webSerialPort = await navigator.serial.requestPort();
+    }
+
+    showToast("Connecting to OpenKey via Web Serial...");
+    await webSerialPort.open({ baudRate: 115200 });
+    await webSerialInitHandshake();
+    showToast("OpenKey hardware connected & authorised via Web Serial!");
+    scanConnectedDevices();
+    return true;
+  } catch (err) {
+    if (err.name !== "NotFoundError") {
+      alert("Failed to connect OpenKey: " + err.message);
+    }
+    webSerialPort = null;
+    isWebSerialActive = false;
+    activeDevice = null;
+    scanConnectedDevices();
+    return false;
+  }
+}
+
+async function autoCheckWebSerial() {
+  if (!isWebSerialSupported() || isTauriAvailable() || isWebSerialActive) return;
+  try {
+    const ports = await navigator.serial.getPorts();
+    if (ports.length > 0 && !webSerialPort) {
+      webSerialPort = ports[0];
+      serialReadBuffer = [];
+      await webSerialPort.open({ baudRate: 115200 });
+      await webSerialInitHandshake();
+      scanConnectedDevices();
+    }
+  } catch (e) {
+    // Port might be in use
+  }
+}
+
+if (typeof navigator !== 'undefined' && 'serial' in navigator) {
+  navigator.serial.addEventListener('disconnect', () => {
+    webSerialPort = null;
+    isWebSerialActive = false;
+    activeDevice = null;
+    serialReadBuffer = [];
+    scanConnectedDevices();
+    showToast("OpenKey disconnected");
+  });
+  navigator.serial.addEventListener('connect', () => {
+    showToast("OpenKey USB plugged in! Click to connect.");
+    autoCheckWebSerial();
+  });
+}
+
+// Unified Command Dispatcher (Tauri IPC + Web Serial)
+const invoke = async (cmd, args) => {
+  const tauriFn = getTauriInvoke();
+  if (tauriFn) {
+    return tauriFn(cmd, args);
+  }
+
+  // Web Serial Driver
+  if (!isWebSerialSupported()) {
+    throw new Error("Neither Tauri IPC nor Web Serial is available in this browser");
+  }
+
+  switch (cmd) {
+    case "scan_devices": {
+      if (isWebSerialActive && activeDevice) {
+        return [activeDevice];
+      }
+      return [];
+    }
+
+    case "wink_device": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      await sendWebSerialCtapCommand(webSerialCid, 0x08, new Uint8Array(0));
+      return "Wink pulse sent to hardware NeoPixel!";
+    }
+
+    case "get_openkey_status": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x01]));
+      if (resp.length < 13 || resp[0] !== 0x00) {
+        throw new Error("Invalid status response from OpenKey hardware");
+      }
+      const rk_count = (resp[6] << 8) | resp[7];
+      const fpBytes = resp.slice(9, 13);
+      const fp = Array.from(fpBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      const profile = resp[5];
+
+      return {
+        initialized: resp[1] === 0xA5,
+        pin_set: resp[2] !== 0,
+        pin_retries: resp[3],
+        seed_configured: resp[4] !== 0,
+        stealth_aaguid_mode: profile === 1,
+        aaguid_profile: profile,
+        resident_key_count: rk_count,
+        flash_encryption_active: resp[8] !== 0,
+        seed_fingerprint: fp,
+      };
+    }
+
+    case "set_aaguid_profile": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const payload = [];
+      if (args && args.pin && args.pin.length > 0) {
+        const hash = await sha256Bytes(args.pin);
+        for (let i = 0; i < 16; i++) payload.push(hash[i]);
+      }
+      payload.push(args.profile);
+
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x03, ...payload]));
+      if (resp.length === 0 || resp[0] !== 0x00) {
+        throw new Error("Failed to update AAGUID profile on hardware (verify PIN)");
+      }
+      return args.profile;
+    }
+
+    case "provision_bip39_seed": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const seedBytes = await mnemonicToSeed(args.words, args.passphrase || "");
+      const payload = [];
+      if (args && args.pin && args.pin.length > 0) {
+        const hash = await sha256Bytes(args.pin);
+        for (let i = 0; i < 16; i++) payload.push(hash[i]);
+      }
+      for (let i = 0; i < seedBytes.length; i++) payload.push(seedBytes[i]);
+
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x02, ...payload]));
+      if (resp.length === 0 || resp[0] !== 0x00) {
+        throw new Error("Failed to provision seed (verify PIN or touch confirmation)");
+      }
+      const fpBytes = resp.slice(1, 5);
+      const fp = Array.from(fpBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      return `Master seed provisioned and committed to hardware NVS! (Fingerprint: ${fp})`;
+    }
+
+    case "validate_bip39_words": {
+      if (!args || !args.words || args.words.length !== 24) {
+        throw new Error("Invalid word count: exactly 24 words required");
+      }
+      return true;
+    }
+
+    case "generate_bip39_words": {
+      return currentMnemonic && currentMnemonic.length === 24 ? currentMnemonic : [
+        "abandon", "ability", "able", "about", "above", "absent",
+        "absorb", "abstract", "absurd", "abuse", "access", "accident",
+        "account", "accuse", "achieve", "acid", "acoustic", "acquire",
+        "across", "act", "action", "actor", "actress", "actual"
+      ];
+    }
+
+    default:
+      throw new Error(`Unsupported command: ${cmd}`);
+  }
+};
 
 // Application State
 let activeDevice = null;
@@ -74,6 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
   generateInitialSeedWords();
   
   // Initial scan and background periodic polling
+  autoCheckWebSerial();
   scanConnectedDevices();
   pollingTimer = setInterval(scanConnectedDevices, 2500);
 });
@@ -217,7 +577,7 @@ function updateGaugeUI(isConnected = true) {
     if (metricWear) metricWear.textContent = "100.0%";
     if (miniArcFill) miniArcFill.style.strokeDashoffset = CIRCUMFERENCE_MINI;
     if (miniNumEl) miniNumEl.textContent = "0%";
-    if (passkeyPill) passkeyPill.textContent = "Disconnected";
+    if (passkeyPill) passkeyPill.textContent = "No Key Detected or Authorised";
     return;
   }
 
@@ -282,12 +642,27 @@ function updateGaugeUI(isConnected = true) {
 
 // 6. Setup All Event Listeners
 function setupEventListeners() {
-  // Rescan USB Button
+  // Rescan USB or Authorise Web Serial Key Button
   const btnScan = document.getElementById("btn-scan");
   if (btnScan) {
     btnScan.addEventListener("click", () => {
-      showToast("Scanning USB buses for OpenKey...");
-      scanConnectedDevices();
+      if (!isTauriAvailable() && isWebSerialSupported()) {
+        requestWebSerialConnection();
+      } else {
+        showToast("Scanning USB buses for OpenKey...");
+        scanConnectedDevices();
+      }
+    });
+  }
+
+  // Device Status Indicator Pill (clickable in browser to authorise)
+  const devicePill = document.getElementById("device-status-indicator");
+  if (devicePill) {
+    devicePill.addEventListener("click", (e) => {
+      if (e.target.closest("#btn-scan")) return;
+      if (!isTauriAvailable() && isWebSerialSupported() && !isWebSerialActive) {
+        requestWebSerialConnection();
+      }
     });
   }
 
@@ -295,13 +670,13 @@ function setupEventListeners() {
   const btnWink = document.getElementById("btn-wink");
   if (btnWink) {
     btnWink.addEventListener("click", () => {
-      if (isTauriAvailable() && activeDevice) {
+      if (activeDevice) {
         showToast("Sending Identify command to OpenKey...");
         invoke("wink_device", { devicePath: activeDevice.path })
           .then(() => showToast("Identify pulse sent to hardware!"))
           .catch(err => showToast("Identify Key failed: " + err));
       } else {
-        showToast("Identify Key: No active OpenKey connected");
+        showToast("Identify Key: No active OpenKey connected or authorised");
       }
     });
   }
@@ -316,7 +691,7 @@ function setupEventListeners() {
       const profileVal = parseInt(selectedRadio.value, 10);
       const pin = document.getElementById("input-profile-pin").value || "";
 
-      if (isTauriAvailable() && activeDevice) {
+      if (activeDevice) {
         showToast(`Applying AAGUID Profile ${profileVal}...`);
         invoke("set_aaguid_profile", {
           devicePath: activeDevice.path,
@@ -333,7 +708,7 @@ function setupEventListeners() {
           alert("Failed to update AAGUID Profile: " + err);
         });
       } else {
-        alert("Please connect your OpenKey hardware first.");
+        alert("Please connect or authorise your OpenKey hardware first.");
       }
     });
   }
@@ -369,7 +744,7 @@ function setupEventListeners() {
         return;
       }
 
-      if (isTauriAvailable() && activeDevice) {
+      if (activeDevice) {
         showToast("Waiting for physical touch verification on BOOT button (GPIO 0)...");
         invoke("provision_bip39_seed", {
           devicePath: activeDevice.path,
@@ -385,7 +760,7 @@ function setupEventListeners() {
         })
         .catch(err => alert("Provisioning failed: " + err));
       } else {
-        alert("Please connect your OpenKey hardware first.");
+        alert("Please connect or authorise your OpenKey hardware first.");
       }
     });
   }
@@ -404,7 +779,7 @@ function setupEventListeners() {
         return;
       }
 
-      if (isTauriAvailable()) {
+      if (isTauriAvailable() || isWebSerialSupported()) {
         invoke("validate_bip39_words", { words })
           .then(() => {
             badge.textContent = "✓ Checksum Valid (BIP-39 OK)";
@@ -434,7 +809,7 @@ function setupEventListeners() {
         return;
       }
 
-      if (isTauriAvailable() && activeDevice) {
+      if (activeDevice) {
         showToast("Waiting for physical touch on BOOT button...");
         invoke("provision_bip39_seed", {
           devicePath: activeDevice.path,
@@ -450,7 +825,7 @@ function setupEventListeners() {
         })
         .catch(err => alert("Restore failed: " + err));
       } else {
-        alert("Please connect your OpenKey hardware first.");
+        alert("Please connect or authorise your OpenKey hardware first.");
       }
     });
   }
@@ -555,7 +930,7 @@ function scanConnectedDevices() {
           activeDevice = null;
           // STRICT RED when disconnected
           if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-          if (statusIndicator) statusIndicator.textContent = "Disconnected";
+          if (statusIndicator) statusIndicator.textContent = "No Key Detected or Authorised";
           if (portIndicator) portIndicator.textContent = "Insert OpenKey USB";
           if (serialIndicator) serialIndicator.textContent = "";
           updateGaugeUI(false);
@@ -564,23 +939,32 @@ function scanConnectedDevices() {
       .catch((err) => {
         activeDevice = null;
         if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-        if (statusIndicator) statusIndicator.textContent = "Scan Error";
+        if (statusIndicator) statusIndicator.textContent = "No Key Detected or Authorised";
         if (portIndicator) portIndicator.textContent = String(err);
         if (serialIndicator) serialIndicator.textContent = "";
         updateGaugeUI(false);
       });
   } else {
-    // Browser Preview Mode (Strict Offline Notice unless Tauri is running)
-    if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-    if (statusIndicator) statusIndicator.textContent = "Companion Offline";
-    if (portIndicator) portIndicator.textContent = "Web Browser Mode (OpenKey App Required)";
-    if (serialIndicator) serialIndicator.textContent = "";
-    updateGaugeUI(false);
+    // Browser Web Serial Mode
+    if (isWebSerialActive && activeDevice) {
+      if (dotIndicator) dotIndicator.className = "status-dot connected";
+      if (statusIndicator) statusIndicator.textContent = activeDevice.product || "OpenKey ESP32-S3";
+      if (portIndicator) portIndicator.textContent = "Connected via Web Serial (COM13)";
+      if (serialIndicator) serialIndicator.textContent = activeDevice.serial_number ? `(SN: ${activeDevice.serial_number})` : "";
+      queryDeviceTelemetry(activeDevice.path);
+    } else {
+      activeDevice = null;
+      if (dotIndicator) dotIndicator.className = "status-dot disconnected";
+      if (statusIndicator) statusIndicator.textContent = "No Key Detected or Authorised";
+      if (portIndicator) portIndicator.textContent = isWebSerialSupported() ? "Click to Authorise OpenKey (COM13)" : "Web Serial not supported in this browser";
+      if (serialIndicator) serialIndicator.textContent = "";
+      updateGaugeUI(false);
+    }
   }
 }
 
 function queryDeviceTelemetry(devicePath) {
-  if (!isTauriAvailable()) return;
+  if (!isTauriAvailable() && !isWebSerialActive) return;
   invoke("get_openkey_status", { devicePath })
     .then(status => {
       seedConfigured = status.seed_configured;

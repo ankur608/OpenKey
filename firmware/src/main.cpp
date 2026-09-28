@@ -477,6 +477,15 @@ static void process_assembled_message(CtapChannel *chan) {
 
                     OpenKey::Storage::get_vault().set_stealth_mode(mode);
 
+                    // Quick blink animation to show new AAGUID setting has been synced with device
+                    for (int i = 0; i < 4; i++) {
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::SUCCESS_GREEN);
+                        delay(60);
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::OFF);
+                        delay(60);
+                    }
+                    OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
+
                     resp_buf[0] = 0x00;
                     resp_buf[1] = OpenKey::Storage::get_vault().get_stealth_mode();
                     send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 2);

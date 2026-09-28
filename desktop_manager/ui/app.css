@@ -498,11 +498,23 @@ body {
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--sidebar-border);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.device-pill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(16, 185, 129, 0.35);
 }
 
 [data-theme="light"] .device-pill {
   background: #F8FAFC;
   border-color: #E2E8F0;
+}
+
+[data-theme="light"] .device-pill:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
 }
 
 /* Strict Connection Status Dot: Glowing Green ONLY when connected, Red when disconnected */
