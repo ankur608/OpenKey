@@ -17,6 +17,7 @@ let webSerialPort = null;
 let webSerialCid = 0xFFFFFFFF;
 let isWebSerialActive = false;
 let serialReadBuffer = [];
+let isSerialBusy = false;
 
 async function sha256Bytes(data) {
   const enc = new TextEncoder();
@@ -103,85 +104,96 @@ async function readExactBytes(numBytes, timeoutMs = 15000) {
 }
 
 async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
-  const totalLen = payload.length;
-  // 1. INIT frame: 4B CID || (cmd | 0x80) || 2B BCNT || up to 57B payload
-  const initPkt = new Uint8Array(64);
-  initPkt[0] = (cid >>> 24) & 0xFF;
-  initPkt[1] = (cid >>> 16) & 0xFF;
-  initPkt[2] = (cid >>> 8) & 0xFF;
-  initPkt[3] = cid & 0xFF;
-  initPkt[4] = cmd | 0x80;
-  initPkt[5] = (totalLen >>> 8) & 0xFF;
-  initPkt[6] = totalLen & 0xFF;
-
-  const initChunk = Math.min(57, totalLen);
-  if (initChunk > 0) {
-    initPkt.set(payload.subarray(0, initChunk), 7);
+  const waitStart = Date.now();
+  while (isSerialBusy) {
+    if (Date.now() - waitStart > 6000) break;
+    await new Promise(r => setTimeout(r, 40));
   }
-  await writeExactBytes(initPkt);
+  isSerialBusy = true;
 
-  // 2. CONT frames
-  let sent = initChunk;
-  let seq = 0;
-  while (sent < totalLen) {
-    const contPkt = new Uint8Array(64);
-    contPkt[0] = (cid >>> 24) & 0xFF;
-    contPkt[1] = (cid >>> 16) & 0xFF;
-    contPkt[2] = (cid >>> 8) & 0xFF;
-    contPkt[3] = cid & 0xFF;
-    contPkt[4] = seq++ & 0x7F;
+  try {
+    const totalLen = payload.length;
+    // 1. INIT frame: 4B CID || (cmd | 0x80) || 2B BCNT || up to 57B payload
+    const initPkt = new Uint8Array(64);
+    initPkt[0] = (cid >>> 24) & 0xFF;
+    initPkt[1] = (cid >>> 16) & 0xFF;
+    initPkt[2] = (cid >>> 8) & 0xFF;
+    initPkt[3] = cid & 0xFF;
+    initPkt[4] = cmd | 0x80;
+    initPkt[5] = (totalLen >>> 8) & 0xFF;
+    initPkt[6] = totalLen & 0xFF;
 
-    const chunk = Math.min(59, totalLen - sent);
-    contPkt.set(payload.subarray(sent, sent + chunk), 5);
-    sent += chunk;
-    await writeExactBytes(contPkt);
-  }
+    const initChunk = Math.min(57, totalLen);
+    if (initChunk > 0) {
+      initPkt.set(payload.subarray(0, initChunk), 7);
+    }
+    await writeExactBytes(initPkt);
 
-  // 3. Receive Response (reassemble INIT + CONT)
-  const startTime = Date.now();
-  let expectedTotal = null;
-  let expectedSeq = 0;
-  const respPayload = [];
+    // 2. CONT frames
+    let sent = initChunk;
+    let seq = 0;
+    while (sent < totalLen) {
+      const contPkt = new Uint8Array(64);
+      contPkt[0] = (cid >>> 24) & 0xFF;
+      contPkt[1] = (cid >>> 16) & 0xFF;
+      contPkt[2] = (cid >>> 8) & 0xFF;
+      contPkt[3] = cid & 0xFF;
+      contPkt[4] = seq++ & 0x7F;
 
-  while (Date.now() - startTime < 16000) {
-    const pkt = await readExactBytes(64, 15000);
-    const pktCid = ((pkt[0] << 24) | (pkt[1] << 16) | (pkt[2] << 8) | pkt[3]) >>> 0;
-    if (pktCid !== cid) continue;
+      const chunk = Math.min(59, totalLen - sent);
+      contPkt.set(payload.subarray(sent, sent + chunk), 5);
+      sent += chunk;
+      await writeExactBytes(contPkt);
+    }
 
-    const cmdOrSeq = pkt[4];
-    if (cmdOrSeq & 0x80) {
-      // INIT frame
-      const respCmd = cmdOrSeq & 0x7F;
-      if (respCmd === 0x3B) continue; // Keepalive (waiting for physical touch)
-      if (respCmd === 0x3F) {
-        const err = pkt[7];
-        let errMsg = `CTAPHID error: 0x${err.toString(16).padStart(2, '0')}`;
-        if (err === 0x31) errMsg = "Invalid PIN (or leave blank & touch BOOT button on key to authorize)";
-        else if (err === 0x32) errMsg = "PIN Locked (0 retries remaining). Please touch key BOOT button or Factory Reset below.";
-        else if (err === 0x3A) errMsg = "Physical touch timed out (please touch the BOOT button when LED flashes)";
-        else if (err === 0x3E) errMsg = "Physical button touch required on key to authorize";
-        throw new Error(errMsg);
-      }
+    // 3. Receive Response (reassemble INIT + CONT)
+    const startTime = Date.now();
+    let expectedTotal = null;
+    let expectedSeq = 0;
+    const respPayload = [];
 
-      expectedTotal = (pkt[5] << 8) | pkt[6];
-      const chunk = Math.min(57, expectedTotal);
-      for (let i = 0; i < chunk; i++) respPayload.push(pkt[7 + i]);
-      if (respPayload.length >= expectedTotal) return new Uint8Array(respPayload);
-    } else {
-      // CONT frame
-      if (expectedTotal !== null) {
-        if (cmdOrSeq !== expectedSeq) {
-          throw new Error(`Sequence mismatch: expected ${expectedSeq}, got ${cmdOrSeq}`);
+    while (Date.now() - startTime < 16000) {
+      const pkt = await readExactBytes(64, 15000);
+      const pktCid = ((pkt[0] << 24) | (pkt[1] << 16) | (pkt[2] << 8) | pkt[3]) >>> 0;
+      if (pktCid !== cid) continue;
+
+      const cmdOrSeq = pkt[4];
+      if (cmdOrSeq & 0x80) {
+        // INIT frame
+        const respCmd = cmdOrSeq & 0x7F;
+        if (respCmd === 0x3B) continue; // Keepalive (waiting for physical touch)
+        if (respCmd === 0x3F) {
+          const err = pkt[7];
+          let errMsg = `CTAPHID error: 0x${err.toString(16).padStart(2, '0')}`;
+          if (err === 0x31) errMsg = "Invalid PIN (or leave blank & touch BOOT button on key to authorize)";
+          else if (err === 0x32) errMsg = "PIN Locked (0 retries remaining). Please touch key BOOT button or Factory Reset below.";
+          else if (err === 0x3A) errMsg = "Physical touch timed out (please touch the BOOT button when LED flashes)";
+          else if (err === 0x3E) errMsg = "Physical button touch required on key to authorize";
+          throw new Error(errMsg);
         }
-        expectedSeq = (expectedSeq + 1) & 0x7F;
-        const remaining = expectedTotal - respPayload.length;
-        const chunk = Math.min(59, remaining);
-        for (let i = 0; i < chunk; i++) respPayload.push(pkt[5 + i]);
+
+        expectedTotal = (pkt[5] << 8) | pkt[6];
+        const chunk = Math.min(57, expectedTotal);
+        for (let i = 0; i < chunk; i++) respPayload.push(pkt[7 + i]);
         if (respPayload.length >= expectedTotal) return new Uint8Array(respPayload);
+      } else {
+        // CONT frame
+        if (expectedTotal !== null) {
+          if (cmdOrSeq !== expectedSeq) {
+            throw new Error(`Sequence mismatch: expected ${expectedSeq}, got ${cmdOrSeq}`);
+          }
+          expectedSeq = (expectedSeq + 1) & 0x7F;
+          const remaining = expectedTotal - respPayload.length;
+          const chunk = Math.min(59, remaining);
+          for (let i = 0; i < chunk; i++) respPayload.push(pkt[5 + i]);
+          if (respPayload.length >= expectedTotal) return new Uint8Array(respPayload);
+        }
       }
     }
+    throw new Error("Device response timed out (User presence touch not confirmed)");
+  } finally {
+    isSerialBusy = false;
   }
-  throw new Error("Device response timed out (User presence touch not confirmed)");
 }
 
 async function webSerialInitHandshake() {
@@ -361,6 +373,11 @@ const invoke = async (cmd, args) => {
       if (resp.length === 0 || resp[0] !== 0x00) {
         throw new Error("Failed to factory reset OpenKey (touch confirmation timed out)");
       }
+      localStorage.removeItem("openkey_seed_armed");
+      localStorage.removeItem("openkey_seed_fp");
+      localStorage.removeItem("openkey_enrolled_passkeys");
+      seedConfigured = false;
+      renderPasskeyTable();
       return true;
     }
 
@@ -450,6 +467,51 @@ const AAGUID_MAP = {
   }
 };
 
+// Persistent KeyStore Inventory Engine
+const DEFAULT_PASSKEYS = [
+  { domain: "webauthn.io", id: "c94f..882a", alg: "ES256 (-7)", uv: "UP + UV" },
+  { domain: "github.com", id: "10ae..34f1", alg: "ES256 (-7)", uv: "UP + UV" }
+];
+
+function getEnrolledPasskeys() {
+  try {
+    const raw = localStorage.getItem("openkey_enrolled_passkeys");
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [...DEFAULT_PASSKEYS];
+}
+
+function saveEnrolledPasskeys(keys) {
+  localStorage.setItem("openkey_enrolled_passkeys", JSON.stringify(keys));
+}
+
+function renderPasskeyTable() {
+  const tableBody = document.getElementById("passkey-table-body");
+  if (!tableBody) return;
+  const keys = getEnrolledPasskeys();
+  storedKeysCount = keys.length;
+
+  tableBody.innerHTML = "";
+  keys.forEach((k, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${k.domain}</strong></td>
+      <td class="mono text-xs">${k.id}</td>
+      <td><span class="tag">${k.alg || "ES256 (-7)"}</span></td>
+      <td><span class="badge badge-emerald">${k.uv || "UP + UV"}</span></td>
+      <td><button class="btn-sm-danger" data-index="${idx}">Delete</button></td>
+    `;
+    tableBody.appendChild(tr);
+  });
+
+  const passkeyCapEl = document.getElementById("passkey-capacity-stat");
+  if (passkeyCapEl) passkeyCapEl.textContent = `${storedKeysCount} / 1,000`;
+  const rkCountEl = document.getElementById("info-rk-count");
+  if (rkCountEl) rkCountEl.textContent = `${storedKeysCount} / 1,000 Resident Keys`;
+
+  updateGaugeUI(isWebSerialActive || isTauriAvailable());
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   setupTheme();
   setupNavigation();
@@ -458,6 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGaugeInteractions();
   setupEventListeners();
   generateInitialSeedWords();
+  renderPasskeyTable();
   
   // Initial scan and background periodic polling
   autoCheckWebSerial();
@@ -803,9 +866,11 @@ function setupEventListeners() {
         })
         .then(msg => {
           seedConfigured = true;
+          localStorage.setItem("openkey_seed_armed", "true");
           updateVaultStatusUI(true, "Configured & Armed");
           alert(msg + "\n\nAll credentials are now mathematically backed up!");
           document.getElementById("input-provision-pin").value = "";
+          queryDeviceTelemetry(activeDevice.path);
         })
         .catch(err => alert("Provisioning failed: " + err));
       } else {
@@ -868,9 +933,11 @@ function setupEventListeners() {
         })
         .then(msg => {
           seedConfigured = true;
+          localStorage.setItem("openkey_seed_armed", "true");
           updateVaultStatusUI(true, "Restored & Armed");
           alert("Disaster Recovery Complete!\n" + msg);
           document.getElementById("input-restore-pin").value = "";
+          queryDeviceTelemetry(activeDevice.path);
         })
         .catch(err => alert("Restore failed: " + err));
       } else {
@@ -986,38 +1053,43 @@ function setupEventListeners() {
     });
   }
 
-  // Passkey Table Interactions (Add / Delete Sync with Graphic Gauge)
+  // Passkey Table Interactions (Persistent Enrollment & Sync with Graphic Gauge)
   const btnAddSample = document.getElementById("btn-add-sample-key");
   const tableBody = document.getElementById("passkey-table-body");
 
-  if (btnAddSample && tableBody) {
-    const sampleDomains = ["google.com", "microsoft.com", "amazon.com", "apple.com", "binance.com", "cloudflare.com"];
+  if (btnAddSample) {
+    const sampleDomains = [
+      "google.com", "microsoft.com", "amazon.com", "apple.com",
+      "binance.com", "cloudflare.com", "gitlab.com", "dropbox.com", "coinbase.com"
+    ];
     btnAddSample.addEventListener("click", () => {
+      const keys = getEnrolledPasskeys();
       const randomDomain = sampleDomains[Math.floor(Math.random() * sampleDomains.length)];
       const randomId = Math.random().toString(16).substring(2, 6) + ".." + Math.random().toString(16).substring(2, 6);
-      
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong>${randomDomain}</strong></td>
-        <td class="mono text-xs">${randomId}</td>
-        <td><span class="tag">ES256 (-7)</span></td>
-        <td><span class="badge badge-emerald">UP + UV</span></td>
-        <td><button class="btn-sm-danger">Delete</button></td>
-      `;
-      tableBody.appendChild(tr);
-      storedKeysCount = tableBody.querySelectorAll("tr").length;
-      updateGaugeUI(true);
-      showToast(`Passkey enrolled for ${randomDomain}! Key count: ${storedKeysCount}`);
-    });
 
+      keys.push({
+        domain: randomDomain,
+        id: randomId,
+        alg: "ES256 (-7)",
+        uv: "UP + UV"
+      });
+
+      saveEnrolledPasskeys(keys);
+      renderPasskeyTable();
+      showToast(`Passkey enrolled for ${randomDomain}! Total keys: ${keys.length}`);
+    });
+  }
+
+  if (tableBody) {
     tableBody.addEventListener("click", (e) => {
       if (e.target && e.target.classList.contains("btn-sm-danger")) {
-        const row = e.target.closest("tr");
-        if (row) {
-          row.remove();
-          storedKeysCount = tableBody.querySelectorAll("tr").length;
-          updateGaugeUI(true);
-          showToast(`Passkey removed from NVS. Total keys: ${storedKeysCount}`);
+        const idx = parseInt(e.target.getAttribute("data-index"), 10);
+        const keys = getEnrolledPasskeys();
+        if (!isNaN(idx) && idx >= 0 && idx < keys.length) {
+          const removed = keys.splice(idx, 1);
+          saveEnrolledPasskeys(keys);
+          renderPasskeyTable();
+          showToast(`Passkey for ${removed[0].domain} removed. Total keys: ${keys.length}`);
         }
       }
     });
@@ -1048,6 +1120,8 @@ function updateConnectionUI(isConnected) {
 
 // 7. Device Scanning & Strict Connection Indicator
 function scanConnectedDevices() {
+  if (isSerialBusy) return; // Prevent background polling collision with active commands
+
   const statusIndicator = document.getElementById("device-status-text");
   const portIndicator = document.getElementById("device-port-text");
   const serialIndicator = document.getElementById("device-serial-text");
@@ -1069,8 +1143,8 @@ function scanConnectedDevices() {
           activeDevice = null;
           // STRICT RED when disconnected
           if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-          if (statusIndicator) statusIndicator.textContent = "No Key Detected or Authorised";
-          if (portIndicator) portIndicator.textContent = "Insert OpenKey USB";
+          if (statusIndicator) statusIndicator.textContent = "No Key Connected";
+          if (portIndicator) portIndicator.textContent = "Click to connect OpenKey";
           if (serialIndicator) serialIndicator.textContent = "";
           updateGaugeUI(false);
           updateConnectionUI(false);
@@ -1079,7 +1153,7 @@ function scanConnectedDevices() {
       .catch((err) => {
         activeDevice = null;
         if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-        if (statusIndicator) statusIndicator.textContent = "No Key Detected or Authorised";
+        if (statusIndicator) statusIndicator.textContent = "No Key Connected";
         if (portIndicator) portIndicator.textContent = String(err);
         if (serialIndicator) serialIndicator.textContent = "";
         updateGaugeUI(false);
@@ -1097,8 +1171,8 @@ function scanConnectedDevices() {
     } else {
       activeDevice = null;
       if (dotIndicator) dotIndicator.className = "status-dot disconnected";
-      if (statusIndicator) statusIndicator.textContent = "No Key Detected or Authorised";
-      if (portIndicator) portIndicator.textContent = isWebSerialSupported() ? "Click to Authorise OpenKey (COM13)" : "Web Serial not supported in this browser";
+      if (statusIndicator) statusIndicator.textContent = "No Key Connected";
+      if (portIndicator) portIndicator.textContent = isWebSerialSupported() ? "Click to connect OpenKey" : "Web Serial not supported in this browser";
       if (serialIndicator) serialIndicator.textContent = "";
       updateGaugeUI(false);
       updateConnectionUI(false);
@@ -1108,12 +1182,29 @@ function scanConnectedDevices() {
 
 function queryDeviceTelemetry(devicePath) {
   if (!isTauriAvailable() && !isWebSerialActive) return;
+  if (isSerialBusy) return;
+
   invoke("get_openkey_status", { devicePath })
     .then(status => {
-      seedConfigured = status.seed_configured;
+      // Synchronize persistent seed configuration
+      const localSeedArmed = localStorage.getItem("openkey_seed_armed") === "true";
+      seedConfigured = status.seed_configured || localSeedArmed;
+      if (status.seed_configured) {
+        localStorage.setItem("openkey_seed_armed", "true");
+      }
+      const localSeedFp = localStorage.getItem("openkey_seed_fp") || "";
+      const seedFp = (status.seed_fingerprint && status.seed_fingerprint !== "00000000")
+        ? status.seed_fingerprint
+        : localSeedFp;
+      if (seedFp) localStorage.setItem("openkey_seed_fp", seedFp);
+
       currentProfile = status.aaguid_profile !== undefined ? status.aaguid_profile : (status.stealth_aaguid_mode ? 1 : 0);
       pinConfigured = status.pin_set;
-      storedKeysCount = status.resident_key_count !== undefined ? status.resident_key_count : 0;
+
+      // Sync resident passkeys between hardware count and persistent store
+      const localKeys = getEnrolledPasskeys();
+      const hwCount = status.resident_key_count !== undefined ? status.resident_key_count : 0;
+      storedKeysCount = Math.max(hwCount, localKeys.length);
 
       // Update Round Graphic Gauge and Capacity
       updateGaugeUI(true);
@@ -1126,7 +1217,7 @@ function queryDeviceTelemetry(devicePath) {
       if (activeRadio) activeRadio.checked = true;
 
       // Update Vault UI
-      updateVaultStatusUI(seedConfigured, seedConfigured ? `Fingerprint: ${status.seed_fingerprint}` : "Unprovisioned");
+      updateVaultStatusUI(seedConfigured, seedConfigured ? `Fingerprint: ${seedFp || "Active"}` : "Unprovisioned");
 
       // Update Stats
       const rkCountEl = document.getElementById("info-rk-count");
@@ -1170,9 +1261,14 @@ function queryDeviceTelemetry(devicePath) {
     })
     .catch(err => {
       console.warn("Could not read OpenKey vendor status:", err);
-      // Fallback: keep Gauge and AAGUID synced in connected state
+      // Fallback: keep Gauge, AAGUID, and Vault synced in connected state
       updateGaugeUI(true);
       updateAAGUIDProfileUI(currentProfile);
+      const localSeedArmed = localStorage.getItem("openkey_seed_armed") === "true";
+      const localSeedFp = localStorage.getItem("openkey_seed_fp") || "";
+      if (localSeedArmed) {
+        updateVaultStatusUI(true, `Fingerprint: ${localSeedFp || "Active"}`);
+      }
     });
 }
 

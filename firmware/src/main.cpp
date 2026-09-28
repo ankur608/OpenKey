@@ -422,19 +422,25 @@ static void process_assembled_message(CtapChannel *chan) {
                         return;
                     }
 
-                    // If PIN is configured, verify PIN hash
+                    // If PIN is configured, verify PIN hash if provided; otherwise physical UP touch was already verified above
                     const uint8_t *seed_ptr = payload;
                     if (OpenKey::Storage::get_vault().is_pin_set()) {
-                        if (payload_len < 16 + 64) {
+                        if (payload_len >= 16 + 64) {
+                            if (!OpenKey::Storage::get_vault().verify_pin(payload, 16)) {
+                                send_ctaphid_error(chan->cid, CTAP2_ERR_PIN_INVALID);
+                                return;
+                            }
+                            seed_ptr = payload + 16;
+                        } else if (payload_len >= 64) {
+                            // PIN omitted: physical presence touch already confirmed on BOOT button
+                            seed_ptr = payload;
+                        } else {
                             send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
                             return;
                         }
-                        if (!OpenKey::Storage::get_vault().verify_pin(payload, 16)) {
-                            send_ctaphid_error(chan->cid, CTAP2_ERR_PIN_INVALID);
-                            return;
-                        }
-                        seed_ptr = payload + 16;
-                    } else if (payload_len < 64) {
+                    } else if (payload_len >= 64) {
+                        seed_ptr = payload;
+                    } else {
                         send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_LENGTH);
                         return;
                     }

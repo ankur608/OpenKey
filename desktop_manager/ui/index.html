@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpenKey Desktop Companion</title>
-  <link rel="stylesheet" href="app.css?v=1.0.5" />
+  <link rel="stylesheet" href="app.css?v=1.0.6" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -66,8 +66,8 @@
         <div class="device-pill unified-bar" id="device-status-indicator">
           <span class="status-dot disconnected" id="connection-status-dot"></span>
           <div class="device-info-col">
-            <span class="device-title" id="device-status-text">No Key Detected or Authorised</span>
-            <span class="device-subtitle" id="device-port-text">Insert USB or Authorise Device</span>
+            <span class="device-title" id="device-status-text">No Key Connected</span>
+            <span class="device-subtitle" id="device-port-text">Click to connect OpenKey</span>
             <span class="device-serial" id="device-serial-text"></span>
           </div>
           <button id="btn-scan" class="btn-refresh-inline" title="Rescan or Authorise OpenKey">
@@ -702,20 +702,7 @@
                 </tr>
               </thead>
               <tbody id="passkey-table-body">
-                <tr>
-                  <td><strong>webauthn.io</strong></td>
-                  <td class="mono text-xs">c94f..882a</td>
-                  <td><span class="tag">ES256 (-7)</span></td>
-                  <td><span class="badge badge-emerald">UP + UV</span></td>
-                  <td><button class="btn-sm-danger">Delete</button></td>
-                </tr>
-                <tr>
-                  <td><strong>github.com</strong></td>
-                  <td class="mono text-xs">10ae..34f1</td>
-                  <td><span class="tag">ES256 (-7)</span></td>
-                  <td><span class="badge badge-emerald">UP + UV</span></td>
-                  <td><button class="btn-sm-danger">Delete</button></td>
-                </tr>
+                <!-- Dynamically populated and persisted by renderPasskeyTable() -->
               </tbody>
             </table>
           </div>
@@ -726,6 +713,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="app.js?v=1.0.5"></script>
+  <script src="app.js?v=1.0.6"></script>
 </body>
 </html>
