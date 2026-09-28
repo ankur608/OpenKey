@@ -68,6 +68,7 @@ struct __attribute__((packed)) DeviceConfig {
     uint8_t seed_fingerprint[4]; // First 4 bytes of SHA-256(master_seed)
     uint8_t large_blob[MAX_LARGE_BLOB_SIZE];
     size_t large_blob_len;
+    uint16_t resident_key_count; // active resident keys count
 };
 
 class FlashVault {
@@ -138,9 +139,14 @@ public:
             config.min_pin_length = OpenKey::Security::PinSecurityPolicy::MIN_PIN_LENGTH;
             config.global_sign_counter = 1;
             config.large_blob_len = 0;
+            config.resident_key_count = 0;
             nvs_set_blob(handle, "cfg", &config, sizeof(config));
             nvs_commit(handle);
         } else {
+            if (size < sizeof(config)) {
+                config.resident_key_count = 0;
+                save_config();
+            }
             // Safety guard: if PIN is not configured or retries zeroed without a PIN, reset to MAX
             if (!is_pin_set() && config.pin_retries_remaining == 0) {
                 config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
@@ -290,6 +296,10 @@ public:
         nvs_set_blob(handle, key_str, &rec, sizeof(rec));
         nvs_commit(handle);
         nvs_close(handle);
+        if (first_free_slot >= 0 && config.resident_key_count < MAX_RESIDENT_KEYS) {
+            config.resident_key_count++;
+            save_config();
+        }
         return true;
     }
 
@@ -419,21 +429,8 @@ public:
         return config.stealth_aaguid_mode;
     }
 
-    uint16_t get_active_resident_key_count() {
-        nvs_handle_t handle;
-        if (nvs_open_from_partition(get_part_name(), NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return 0;
-        uint16_t count = 0;
-        char key_str[16];
-        for (int i = 0; i < MAX_RESIDENT_KEYS; i++) {
-            snprintf(key_str, sizeof(key_str), "rk_%04d", i);
-            FidoResidentKeyRecord slot;
-            size_t size = sizeof(slot);
-            if (nvs_get_blob(handle, key_str, &slot, &size) == ESP_OK) {
-                if (slot.is_active) count++;
-            }
-        }
-        nvs_close(handle);
-        return count;
+    uint16_t get_active_resident_key_count() const {
+        return config.resident_key_count;
     }
 
     /**
@@ -453,6 +450,7 @@ public:
         config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
         config.min_pin_length = OpenKey::Security::PinSecurityPolicy::MIN_PIN_LENGTH;
         config.global_sign_counter = 1;
+        config.resident_key_count = 0;
         save_config();
     }
 };

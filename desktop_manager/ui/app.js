@@ -151,6 +151,7 @@ async function sendWebSerialCtapCommand(cid, cmd, payload = new Uint8Array(0)) {
     const cmdOrSeq = pkt[4];
     if (cmdOrSeq & 0x80) {
       // INIT frame
+      const respCmd = cmdOrSeq & 0x7F;
       if (respCmd === 0x3B) continue; // Keepalive (waiting for physical touch)
       if (respCmd === 0x3F) {
         const err = pkt[7];
@@ -739,6 +740,7 @@ function setupEventListeners() {
           updateAAGUIDProfileUI(profileVal);
           showToast(`OpenKey AAGUID Profile ${profileVal} successfully committed!`);
           document.getElementById("input-profile-pin").value = "";
+          queryDeviceTelemetry(activeDevice.path);
         })
         .catch(err => {
           alert("Failed to update AAGUID Profile: " + err);
@@ -748,6 +750,17 @@ function setupEventListeners() {
       }
     });
   }
+
+  // Radio button change listener: immediate preview of selected profile
+  const profileRadios = document.querySelectorAll('input[name="aaguid-profile"]');
+  profileRadios.forEach(radio => {
+    radio.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        const val = parseInt(e.target.value, 10);
+        updateAAGUIDProfileUI(val);
+      }
+    });
+  });
 
   // Feature 3: Generate Fresh BIP-39 Words
   const btnGenSeed = document.getElementById("btn-gen-seed");
@@ -1157,6 +1170,9 @@ function queryDeviceTelemetry(devicePath) {
     })
     .catch(err => {
       console.warn("Could not read OpenKey vendor status:", err);
+      // Fallback: keep Gauge and AAGUID synced in connected state
+      updateGaugeUI(true);
+      updateAAGUIDProfileUI(currentProfile);
     });
 }
 
