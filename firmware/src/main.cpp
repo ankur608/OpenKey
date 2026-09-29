@@ -727,19 +727,14 @@ void setup() {
     // 5. Initialize Cryptographic DRBG
     OpenKey::Crypto::get_rng().init();
 
-    // 6. Initialize Native USB HID Stack (pid.codes VID 0x1209 / dev PID 0x0001)
-    // Product string "OpenKey FIDO2" appears in:
-    //   Windows Device Manager, Android USB device list, Chrome WebHID chooser,
-    //   macOS System Information, KeePassXC device picker, Okta Verify, etc.
+    // 6. Initialize Native USB HID Stack
     USB.VID(OPENKEY_USB_VID);
     USB.PID(OPENKEY_USB_PID);
-    USB.productName(OPENKEY_PRODUCT_STR);          // "OpenKey FIDO2"
-    USB.manufacturerName(OPENKEY_MANUFACTURER_STR); // "OpenKey Security"
-    USB.serialNumber("OK-F2-00000001");  // OK-F2 prefix = OpenKey FIDO2; unique per unit
-    USB.usbVersion(0x0200);              // USB 2.0 — required for Android OTG full-speed HID
-    USB.usbPower(100);                   // 100 mA — within Android OTG 100 mA budget
-    USB.webUSB(false);                   // Disable WebUSB — FIDO2 uses HID, not WebUSB
-
+    USB.productName(OPENKEY_PRODUCT_STR);
+    USB.manufacturerName(OPENKEY_MANUFACTURER_STR);
+    USB.serialNumber("OK-F2-00000001");
+    USB.usbPower(100);
+    
     fido_device.begin();
     USB.begin();
 

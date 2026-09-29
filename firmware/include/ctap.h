@@ -199,25 +199,21 @@ public:
         CborEncoder enc(out_buf, max_out);
 
         bool has_pin = OpenKey::Storage::get_vault().is_pin_set();
-        enc.write_map_header(11); // Keys: 0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0D = 11
+        enc.write_map_header(10);
 
-        // 0x01: versions — advertise U2F_V2, FIDO_2_0, and FIDO_2_1
-        // Windows Hello requires FIDO_2_0 minimum.
-        // Entra ID / Okta accept FIDO_2_1 for richer features.
-        // U2F_V2 provides fallback for legacy sites.
+        // 0x01: versions array
+        // Standard FIDO 2.0 + U2F fallback for universal compatibility with
+        // Windows Hello, Microsoft 365 / Entra ID, Chrome, Okta, Duo, and Safari.
         enc.write_int(0x01);
-        enc.write_array_header(3);
+        enc.write_array_header(2);
         enc.write_text("U2F_V2");
         enc.write_text("FIDO_2_0");
-        enc.write_text("FIDO_2_1");
 
-        // 0x02: extensions
-        // hmac-secret — KeePassXC, Okta offline, Chrome PRF extension (backed by hmac-secret)
-        // credProtect — Windows Hello enterprise / Entra ID credential protection policy
+        // 0x02: extensions array
+        // hmac-secret — Supported by OpenKey; used by KeePassXC, PRF in Chrome, Okta.
         enc.write_int(0x02);
-        enc.write_array_header(2);
+        enc.write_array_header(1);
         enc.write_text("hmac-secret");
-        enc.write_text("credProtect");
 
         // 0x03: aaguid (16 bytes)
         enc.write_int(0x03);
@@ -231,68 +227,52 @@ public:
             enc.write_bytes(OPENKEY_AAGUID, 16);
         }
 
-        // 0x04: options map (7 entries — must match map_header count exactly)
-        // rk        — Resident/discoverable keys (Windows Hello passwordless, Entra ID)
-        // up        — User Presence button (mandatory for all FIDO2)
-        // uv        — User Verification via PIN (true only after PIN is configured)
-        // plat      — false = cross-platform/roaming key, not bound to this machine
-        // clientPin — PIN capability; value = is PIN currently set?
-        // credMgmt  — CTAP 2.1 credential management (enumerate/delete stored passkeys)
-        // alwaysUv  — false: permit UP-only assertions before PIN is set
+        // 0x04: options map (4 standard keys per CTAP 2.0 specification)
+        // rk        — Resident/discoverable keys supported (up to 1,000 in flash)
+        // up        — Physical user presence via BOOT button touch
+        // plat      — false: external roaming security key
+        // clientPin — false: PIN capability available but not set; true: PIN configured
         enc.write_int(0x04);
-        enc.write_map_header(7);
-        enc.write_text("rk");        enc.write_bool(true);
-        enc.write_text("up");        enc.write_bool(true);
-        enc.write_text("uv");        enc.write_bool(has_pin);
-        enc.write_text("plat");      enc.write_bool(false);
-        enc.write_text("clientPin"); enc.write_bool(has_pin);
-        enc.write_text("credMgmt");  enc.write_bool(true);
-        enc.write_text("alwaysUv");  enc.write_bool(false);
+        enc.write_map_header(4);
+        enc.write_text("rk");
+        enc.write_bool(true);
+        enc.write_text("up");
+        enc.write_bool(true);
+        enc.write_text("plat");
+        enc.write_bool(false);
+        enc.write_text("clientPin");
+        enc.write_bool(has_pin);
 
-        // 0x05: maxMsgSize
+        // 0x05: maxMsgSize (1200 bytes)
         enc.write_int(0x05);
         enc.write_int(1200);
 
         // 0x06: pinUvAuthProtocols
-        // Protocol 1 FIRST — firmware implements Protocol 1 (ECDH P-256 + AES-CBC).
-        // CTAP2 spec: client MUST use the first mutually supported protocol.
-        // Windows Hello uses Protocol 1 when it appears first; listing Protocol 2 first
-        // caused Windows to negotiate Protocol 2 which is not yet implemented → failure.
+        // Protocol 1 (ECDH P-256 + AES-256-CBC) implemented in OpenKey
         enc.write_int(0x06);
-        enc.write_array_header(2);
-        enc.write_int(1); // Protocol 1 — implemented, active
-        enc.write_int(2); // Protocol 2 — declared for forward compat only
+        enc.write_array_header(1);
+        enc.write_int(1);
 
-        // 0x07: maxCredentialCountInList (allowList/excludeList cap)
+        // 0x07: maxCredentialCountInList
         enc.write_int(0x07);
-        enc.write_int(16);
+        enc.write_int(8);
 
         // 0x08: maxCredentialIdLength
         enc.write_int(0x08);
-        enc.write_int(128);
-
-        // 0x09: transports — hint to platform which transports are available
-        // "usb" is mandatory here for Android UsbManager FIDO2 enumeration
-        enc.write_int(0x09);
-        enc.write_array_header(1);
-        enc.write_text("usb");
+        enc.write_int(64);
 
         // 0x0A: algorithms
-        // ES256 (-7) ONLY — firmware implements ECDSA P-256 SHA-256.
-        // RS256 removed: advertising RS256 without implementing it causes Windows Hello to
-        // attempt an RS256 makeCredential the firmware silently rejects → "Can't read key".
         enc.write_int(0x0A);
         enc.write_array_header(1);
         enc.write_map_header(2);
-        enc.write_text("type"); enc.write_text("public-key");
-        enc.write_text("alg");  enc.write_int(-7); // ES256 (ECDSA P-256 SHA-256)
+        enc.write_text("type");
+        enc.write_text("public-key");
+        enc.write_text("alg");
+        enc.write_int(-7); // ES256 (ECDSA P-256 with SHA-256)
 
-        // 0x0D: minPINLength (CTAP 2.1)
+        // 0x0D: minPINLength
         enc.write_int(0x0D);
         enc.write_int(OpenKey::Storage::get_vault().get_min_pin_length());
-
-        // NOTE: 0x0E (firmwareVersion) omitted — map_header=11 matches exactly 11 keys.
-        // Add 0x0E only if map_header is incremented to 12.
 
         *out_len = enc.get_size();
         return CTAP1_ERR_SUCCESS;
