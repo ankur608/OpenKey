@@ -1,23 +1,48 @@
 /**
  * @file descriptors.h
  * @brief OpenKey USB Descriptors (FIDO2/U2F HID & CCID Smartcard Interface)
- * @version 1.0.0
- * 
+ * @version 1.1.0
+ *
  * Hardware Target: Waveshare ESP32-S3-Zero
- * VID: 0x303A (Espressif) | PID: 0x1002 (OpenKey Security Key)
+ *
+ * USB VID/PID Assignment:
+ *   VID: 0x1209  — pid.codes Open Source Hardware VID (https://pid.codes)
+ *                  Recognised by Android, Windows, macOS, Linux, ChromeOS natively.
+ *                  Espressif VID (0x303A) is NOT in Android's FIDO2 allowlist.
+ *   PID: 0x0001  — pid.codes reserved development/test PID (safe for PoC & testing).
+ *                  Replace with your assigned PID once approved via:
+ *                  https://github.com/pidcodes/pidcodes.github.com/pulls
+ *                  (Submit PR under 1209/<YOUR_PID>/index.md — approved within 24-48h)
+ *
+ * Platform Compatibility:
+ *   - Windows Hello (PIN + Security Key)  : CTAP2 + clientPin + UV + rk
+ *   - Microsoft 365 / Entra ID            : CTAP2 + hmac-secret ext + attestation
+ *   - Google Chrome / WebAuthn            : CTAP2 + CTAP1/U2F fallback
+ *   - Android (USB OTG + NFC later)       : pid.codes VID + FIDO HID Usage 0xF1D0
+ *   - Okta / Duo / Auth0                  : CTAP2 or U2F_V2 (both advertised)
+ *   - macOS / Safari                      : CTAP2 HID + proper string descriptors
+ *   - iOS (via NFC — future)              : Requires NFC transport (future module)
+ *   - KeePassXC                           : hmac-secret extension on getAssertion
  */
 
 #pragma once
 
 #include <stdint.h>
 
-#define OPENKEY_USB_VID             0x303A
-#define OPENKEY_USB_PID             0x1002
-#define OPENKEY_USB_BCD_DEVICE      0x0100
+// ── USB Identity ─────────────────────────────────────────────────────────────
+// pid.codes Open Source VID — Android/Windows/Linux/macOS all recognise this.
+// TODO: Replace PID 0x0001 with your assigned PID once your pid.codes PR merges.
+//       PR template: https://github.com/pidcodes/pidcodes.github.com/wiki
+#define OPENKEY_USB_VID             0x1209   // pid.codes Open Source Hardware VID
+#define OPENKEY_USB_PID             0x0001   // pid.codes dev/test PID (replace post-approval)
+#define OPENKEY_USB_BCD_DEVICE      0x0110   // Device version 1.1
 
+// ── String Descriptors ───────────────────────────────────────────────────────
+// These appear in Windows Device Manager, Android UsbManager, macOS System Info,
+// Keyroost, Chrome WebHID, and all FIDO client registration dialogs.
 #define OPENKEY_MANUFACTURER_STR    "OpenKey Security"
-#define OPENKEY_PRODUCT_STR         "OpenKey"
-#define OPENKEY_INTERFACE_HID_STR   "OpenKey"
+#define OPENKEY_PRODUCT_STR         "OpenKey FIDO2"
+#define OPENKEY_INTERFACE_HID_STR   "OpenKey FIDO2 Security Key"
 #define OPENKEY_INTERFACE_CCID_STR  "OpenKey Smartcard CCID"
 
 #define HID_REPORT_SIZE             64

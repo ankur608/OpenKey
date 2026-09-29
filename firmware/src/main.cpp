@@ -133,16 +133,16 @@ extern "C" uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t lang
         _desc_str[1] = 0x0409;
         chr_count = 1;
     } else {
-        const char *str = OPENKEY_PRODUCT_STR; // "OpenKey"
+        const char *str = OPENKEY_PRODUCT_STR; // "OpenKey FIDO2"
         if (index == 1) {
             str = OPENKEY_MANUFACTURER_STR;     // "OpenKey Security"
         } else if (index == 2) {
-            str = OPENKEY_PRODUCT_STR;          // "OpenKey"
+            str = OPENKEY_PRODUCT_STR;          // "OpenKey FIDO2"
         } else if (index == 3) {
-            str = "OK-S30-00000001";            // Serial number
+            str = "OK-F2-00000001";             // Serial number (OK-F2 = OpenKey FIDO2)
         } else {
-            // Interface string (index 4+, which TinyUSB otherwise names "TinyUSB HID")
-            str = OPENKEY_PRODUCT_STR;          // "OpenKey"
+            // Interface string (index 4+: FIDO HID interface name shown in device managers)
+            str = OPENKEY_INTERFACE_HID_STR;    // "OpenKey FIDO2 Security Key"
         }
 
         chr_count = strlen(str);
@@ -727,14 +727,19 @@ void setup() {
     // 5. Initialize Cryptographic DRBG
     OpenKey::Crypto::get_rng().init();
 
-    // 6. Initialize Native USB HID Stack
+    // 6. Initialize Native USB HID Stack (pid.codes VID 0x1209 / dev PID 0x0001)
+    // Product string "OpenKey FIDO2" appears in:
+    //   Windows Device Manager, Android USB device list, Chrome WebHID chooser,
+    //   macOS System Information, KeePassXC device picker, Okta Verify, etc.
     USB.VID(OPENKEY_USB_VID);
     USB.PID(OPENKEY_USB_PID);
-    USB.productName(OPENKEY_PRODUCT_STR);
-    USB.manufacturerName(OPENKEY_MANUFACTURER_STR);
-    USB.serialNumber("OK-S30-00000001");
-    USB.usbPower(100); // 100mA low-power device for mobile OTG compatibility (Android/iOS)
-    
+    USB.productName(OPENKEY_PRODUCT_STR);          // "OpenKey FIDO2"
+    USB.manufacturerName(OPENKEY_MANUFACTURER_STR); // "OpenKey Security"
+    USB.serialNumber("OK-F2-00000001");  // OK-F2 prefix = OpenKey FIDO2; unique per unit
+    USB.usbVersion(0x0200);              // USB 2.0 — required for Android OTG full-speed HID
+    USB.usbPower(100);                   // 100 mA — within Android OTG 100 mA budget
+    USB.webUSB(false);                   // Disable WebUSB — FIDO2 uses HID, not WebUSB
+
     fido_device.begin();
     USB.begin();
 
