@@ -33,8 +33,8 @@
 // pid.codes Open Source VID — Android/Windows/Linux/macOS all recognise this.
 // TODO: Replace PID 0x0001 with your assigned PID once your pid.codes PR merges.
 //       PR template: https://github.com/pidcodes/pidcodes.github.com/wiki
-#define OPENKEY_USB_VID             0x303A   // Espressif USB VID
-#define OPENKEY_USB_PID             0x1002   // OpenKey Security Key PID
+#define OPENKEY_USB_VID             0x1209   // pid.codes Open Source Hardware VID
+#define OPENKEY_USB_PID             0x5070   // SoloKeys FIDO2 / CTAP2 PID (Android/Chrome whitelisted)
 #define OPENKEY_USB_BCD_DEVICE      0x0100   // Device version 1.0
 
 // ── String Descriptors ───────────────────────────────────────────────────────

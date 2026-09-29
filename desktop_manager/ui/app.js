@@ -236,8 +236,8 @@ async function webSerialInitHandshake() {
   isWebSerialActive = true;
   activeDevice = {
     path: "webserial:usb",
-    vendor_id: 0x1209,          // pid.codes Open Source VID (updated from 0x303A)
-    product_id: 0x0001,         // pid.codes dev/test PID
+    vendor_id: 0x1209,          // pid.codes Open Source VID
+    product_id: 0x5070,         // SoloKeys FIDO2 PID
     manufacturer: "OpenKey Security",
     product: "OpenKey FIDO2",
     serial_number: "OK-F2-00000001"
