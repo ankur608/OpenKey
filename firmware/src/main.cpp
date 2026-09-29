@@ -678,6 +678,41 @@ static void process_assembled_message(CtapChannel *chan) {
                     return;
                 }
 
+                case 0x08: { // VENDOR_CMD_LIST_RESIDENT_KEYS (Live Hardware NVS Enumeration)
+                    // Response format:
+                    // resp_buf[0] = 0x00 (Success)
+                    // resp_buf[1] = count of returned records
+                    // Each record (70 bytes):
+                    //   1B: slot_index
+                    //   32B: rp_id_hash
+                    //   32B: credential_id
+                    //   4B: sign_counter (big endian)
+                    //   1B: algorithm (-7 / 0xF9 = ES256)
+                    uint8_t count = 0;
+                    size_t offset = 2;
+                    for (int i = 0; i < MAX_RESIDENT_KEYS && count < 16; i++) {
+                        OpenKey::Storage::FidoResidentKeyRecord rk;
+                        if (OpenKey::Storage::get_vault().get_resident_key_at(i, &rk)) {
+                            resp_buf[offset++] = (uint8_t)i;
+                            memcpy(resp_buf + offset, rk.rp_id_hash, 32);
+                            offset += 32;
+                            memcpy(resp_buf + offset, rk.credential_id, 32);
+                            offset += 32;
+                            resp_buf[offset++] = (uint8_t)(rk.sign_counter >> 24);
+                            resp_buf[offset++] = (uint8_t)(rk.sign_counter >> 16);
+                            resp_buf[offset++] = (uint8_t)(rk.sign_counter >> 8);
+                            resp_buf[offset++] = (uint8_t)(rk.sign_counter);
+                            resp_buf[offset++] = rk.algorithm;
+                            count++;
+                            OpenKey::Security::secure_wipe(&rk, sizeof(rk));
+                        }
+                    }
+                    resp_buf[0] = 0x00;
+                    resp_buf[1] = count;
+                    send_ctaphid_response(chan->cid, chan->cmd, resp_buf, (uint16_t)offset);
+                    return;
+                }
+
                 default:
                     send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_PARAMETER);
                     return;

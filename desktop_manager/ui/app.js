@@ -320,7 +320,14 @@ if (typeof navigator !== 'undefined' && 'serial' in navigator) {
 const invoke = async (cmd, args) => {
   const tauriFn = getTauriInvoke();
   if (tauriFn) {
-    return tauriFn(cmd, args);
+    try {
+      return await tauriFn(cmd, args);
+    } catch (e) {
+      if (cmd === "list_hardware_resident_keys") {
+        return [];
+      }
+      throw e;
+    }
   }
 
   // Web Serial Driver
@@ -364,6 +371,39 @@ const invoke = async (cmd, args) => {
         flash_encryption_active: resp[8] !== 0,
         seed_fingerprint: fp,
       };
+    }
+
+    case "list_hardware_resident_keys": {
+      if (!isWebSerialActive) return [];
+      try {
+        const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x08]));
+        if (!resp || resp.length < 2 || resp[0] !== 0x00) return [];
+        const count = resp[1];
+        const records = [];
+        let offset = 2;
+        for (let i = 0; i < count && offset + 70 <= resp.length; i++) {
+          const slot = resp[offset];
+          const rpHashBytes = resp.slice(offset + 1, offset + 33);
+          const rpHashHex = Array.from(rpHashBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          const credIdBytes = resp.slice(offset + 33, offset + 65);
+          const credIdHex = Array.from(credIdBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          const signCounter = (resp[offset + 65] << 24) | (resp[offset + 66] << 16) | (resp[offset + 67] << 8) | resp[offset + 68];
+          const alg = resp[offset + 69];
+          records.push({
+            slot,
+            rpHash: rpHashHex,
+            credId: credIdHex,
+            signCounter,
+            alg: (alg === 0xF9 || alg === 249) ? "ES256 (-7)" : "P-256",
+            source: "hardware"
+          });
+          offset += 70;
+        }
+        return records;
+      } catch (e) {
+        console.warn("Hardware NVS enumeration error:", e);
+        return [];
+      }
     }
 
     case "set_aaguid_profile": {
@@ -428,6 +468,7 @@ const invoke = async (cmd, args) => {
       seedConfigured = false;
       pinConfigured = false;
       storedKeysCount = 0;
+      latestHardwareKeys = [];
       renderPasskeyTable();
       updateVaultStatusUI(false, "Unprovisioned");
       updateGaugeUI(true);
@@ -544,21 +585,88 @@ function saveEnrolledPasskeys(keys) {
   localStorage.setItem("openkey_enrolled_passkeys", JSON.stringify(keys));
 }
 
-function renderPasskeyTable() {
+const KNOWN_DOMAINS = [
+  "webauthn.io",
+  "demo.yubico.com",
+  "login.microsoft.com",
+  "account.live.com",
+  "live.com",
+  "microsoft.com",
+  "github.com",
+  "google.com",
+  "apple.com",
+  "binance.com",
+  "cloudflare.com",
+  "passkeys.io",
+  "gitlab.com",
+  "dropbox.com",
+  "coinbase.com",
+  "amazon.com",
+  "paypal.com",
+  "twitter.com",
+  "x.com",
+  "ebay.com",
+  "yahoo.com"
+];
+
+let domainHashMap = null;
+async function getDomainHashMap() {
+  if (domainHashMap) return domainHashMap;
+  domainHashMap = {};
+  for (const d of KNOWN_DOMAINS) {
+    try {
+      const hash = await sha256Bytes(d);
+      const hex = Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('');
+      domainHashMap[hex.toLowerCase()] = d;
+    } catch (e) {}
+  }
+  return domainHashMap;
+}
+
+let latestHardwareKeys = null;
+
+async function renderPasskeyTable(hwKeys = null) {
   const tableBody = document.getElementById("passkey-table-body");
   if (!tableBody) return;
-  const keys = getEnrolledPasskeys();
-  storedKeysCount = keys.length;
+
+  if (hwKeys !== null) {
+    latestHardwareKeys = hwKeys;
+  }
+
+  let displayKeys = [];
+  if (latestHardwareKeys && latestHardwareKeys.length > 0) {
+    const dMap = await getDomainHashMap();
+    displayKeys = latestHardwareKeys.map(k => {
+      const hashKey = k.rpHash.toLowerCase();
+      const domainName = dMap[hashKey] || `passkey-${k.rpHash.substring(0, 8)}.auth`;
+      const shortId = k.credId.substring(0, 4) + ".." + k.credId.substring(k.credId.length - 4);
+      return {
+        domain: domainName,
+        id: shortId,
+        alg: k.alg || "ES256 (-7)",
+        uv: `Flash rk_${k.slot}`,
+        isHardware: true,
+        slot: k.slot
+      };
+    });
+    storedKeysCount = latestHardwareKeys.length;
+  } else {
+    displayKeys = getEnrolledPasskeys();
+    storedKeysCount = displayKeys.length;
+  }
 
   tableBody.innerHTML = "";
-  keys.forEach((k, idx) => {
+  displayKeys.forEach((k, idx) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${k.domain}</strong></td>
+      <td>
+        <strong>${k.domain}</strong>
+        ${k.isHardware ? '<span class="badge badge-mini badge-cyan" style="margin-left:6px; font-size:10px;">Live Flash</span>' : ''}
+      </td>
       <td class="mono text-xs">${k.id}</td>
       <td><span class="tag">${k.alg || "ES256 (-7)"}</span></td>
       <td><span class="badge badge-emerald">${k.uv || "UP + UV"}</span></td>
-      <td><button class="btn-sm-danger" data-index="${idx}">Delete</button></td>
+      <td><button class="btn-sm-danger" data-index="${idx}" ${k.isHardware ? 'disabled style="opacity:0.5; cursor:not-allowed;" title="Hardware passkey in NVS flash"' : ''}>${k.isHardware ? 'NVS Slot' : 'Delete'}</button></td>
     `;
     tableBody.appendChild(tr);
   });
@@ -1150,6 +1258,26 @@ function setupEventListeners() {
   const btnAddSample = document.getElementById("btn-add-sample-key");
   const tableBody = document.getElementById("passkey-table-body");
 
+  const btnRefreshHw = document.getElementById("btn-refresh-hardware-keys");
+  if (btnRefreshHw) {
+    btnRefreshHw.addEventListener("click", async () => {
+      if (!isWebSerialActive) {
+        showToast("OpenKey not connected via Web Serial");
+        return;
+      }
+      try {
+        btnRefreshHw.disabled = true;
+        const hwKeys = await invoke("list_hardware_resident_keys");
+        await renderPasskeyTable(hwKeys);
+        showToast(`Synced ${hwKeys.length} hardware passkeys from OpenKey flash vault!`);
+      } catch (e) {
+        showToast("Error reading hardware passkeys: " + e.message);
+      } finally {
+        btnRefreshHw.disabled = false;
+      }
+    });
+  }
+
   if (btnAddSample) {
     const sampleDomains = [
       "google.com", "microsoft.com", "amazon.com", "apple.com",
@@ -1303,6 +1431,21 @@ function queryDeviceTelemetry(devicePath) {
       const localKeys = getEnrolledPasskeys();
       const hwCount = status.resident_key_count !== undefined ? status.resident_key_count : 0;
       storedKeysCount = Math.max(hwCount, localKeys.length);
+
+      // Fetch live hardware resident keys if count changed or not yet fetched
+      if (isWebSerialActive && (latestHardwareKeys === null || latestHardwareKeys.length !== hwCount)) {
+        invoke("list_hardware_resident_keys")
+          .then(hwKeys => {
+            if (hwKeys && hwKeys.length > 0) {
+              renderPasskeyTable(hwKeys);
+            } else {
+              renderPasskeyTable([]);
+            }
+          })
+          .catch(() => {
+            renderPasskeyTable();
+          });
+      }
 
       // Update Round Graphic Gauge and Capacity
       updateGaugeUI(true);

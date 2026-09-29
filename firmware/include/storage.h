@@ -336,6 +336,22 @@ public:
     }
 
     /**
+     * @brief Retrieve resident key record by slot index (Feature: Live Hardware NVS Enumeration)
+     */
+    bool get_resident_key_at(int slot_idx, FidoResidentKeyRecord *out_rec) {
+        if (!out_rec || slot_idx < 0 || slot_idx >= MAX_RESIDENT_KEYS) return false;
+        nvs_handle_t handle;
+        if (nvs_open_from_partition(get_part_name(), NVS_NS_FIDO_RK, NVS_READONLY, &handle) != ESP_OK) return false;
+
+        char key_str[16];
+        snprintf(key_str, sizeof(key_str), "rk_%04d", slot_idx);
+        size_t size = sizeof(FidoResidentKeyRecord);
+        esp_err_t err = nvs_get_blob(handle, key_str, out_rec, &size);
+        nvs_close(handle);
+        return (err == ESP_OK && out_rec->is_active != 0);
+    }
+
+    /**
      * @brief Search for Resident Key by Credential ID
      */
     bool find_resident_key_by_id(const uint8_t *cred_id_32b, FidoResidentKeyRecord *out_rec) {

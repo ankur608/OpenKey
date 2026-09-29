@@ -688,7 +688,10 @@
               <h3>Registered Relying Parties (WebAuthn Domains)</h3>
               <p class="text-muted text-xs">Credentials committed to OpenKey raw NVS flash storage.</p>
             </div>
-            <button id="btn-add-sample-key" class="btn btn-secondary btn-sm">+ Enroll Test Passkey</button>
+            <div style="display:flex; gap:8px;">
+              <button id="btn-refresh-hardware-keys" class="btn btn-secondary btn-sm" title="Re-query NVS flash resident keys directly from hardware key">Sync Flash Keys</button>
+              <button id="btn-add-sample-key" class="btn btn-secondary btn-sm">+ Enroll Test Passkey</button>
+            </div>
           </div>
           
           <div class="table-responsive mt-15">
@@ -714,6 +717,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="app.js?v=1.1.1"></script>
+  <script src="app.js?v=1.1.2"></script>
 </body>
 </html>
