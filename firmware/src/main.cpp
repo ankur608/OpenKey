@@ -756,24 +756,35 @@ void process_incoming_hid_packet(const uint8_t *packet_64b, bool from_serial) {
  * @brief System Initialization
  */
 void setup() {
+    // 0. MUST BE FIRST: Configure USB Device Descriptors before starting USB or Serial
+    USB.VID(OPENKEY_USB_VID);
+    USB.PID(OPENKEY_USB_PID);
+    USB.productName(OPENKEY_PRODUCT_STR);
+    USB.manufacturerName(OPENKEY_MANUFACTURER_STR);
+    USB.serialNumber("OK-F2-00000001");
+    USB.usbPower(100);
+
+    fido_device.begin();
+    USB.begin();
+
     Serial.begin(115200);
     Serial.setTimeout(10);
     delay(100);
 
-    // 0. Air-Gapped Master Factory Wipe Check (Feature 8):
-    // If BOOT button (GPIO 0) is held continuously for 20.0s upon power-up:
-    // LED cycles Yellow (0..7s) -> Red (7..14s) -> Rapid White (14..20s)
+    // 1. Air-Gapped Master Factory Wipe Check (Feature 8):
+    // If BOOT button (GPIO 0) is held continuously for 4.0s upon power-up:
+    // LED cycles Yellow (0..1.5s) -> Red (1.5..3.0s) -> Rapid White (3.0..4.0s)
     // then performs a master hardware wipe of all 1,000 keys and halts.
     OpenKey::Peripherals::get_peripherals().check_power_on_wipe([]() {
         OpenKey::Storage::get_vault().init();
         OpenKey::Storage::get_vault().factory_reset();
     });
 
-    // 1. Initialize Peripherals (NeoPixel & Boot Button)
+    // 2. Initialize Peripherals (NeoPixel & Boot Button)
     OpenKey::Peripherals::get_peripherals().init();
     OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
 
-    // 2. Hardware Fault & Brownout Zeroization Hook (Feature 4):
+    // 3. Hardware Fault & Brownout Zeroization Hook (Feature 4):
     esp_register_shutdown_handler([]() {
         for (int i = 0; i < MAX_CONCURRENT_CHANNELS; i++) {
             OpenKey::Security::secure_wipe(channels[i].buffer, sizeof(channels[i].buffer));
@@ -781,7 +792,7 @@ void setup() {
         }
     });
 
-    // 3. Initialize VAPT Security & Silicon TRNG
+    // 4. Initialize VAPT Security & Silicon TRNG
     OpenKey::Security::HardwareSecurityAudit audit = OpenKey::Security::HardwareSecurityAudit::inspect();
     if (!audit.trng_healthy) {
         // Silicon RNG failure: lock out key into red alert state
@@ -789,22 +800,11 @@ void setup() {
         while (1) { delay(1000); }
     }
 
-    // 4. Initialize Raw NVS Storage Vault
+    // 5. Initialize Raw NVS Storage Vault
     OpenKey::Storage::get_vault().init();
 
-    // 5. Initialize Cryptographic DRBG
+    // 6. Initialize Cryptographic DRBG
     OpenKey::Crypto::get_rng().init();
-
-    // 6. Initialize Native USB HID Stack
-    USB.VID(OPENKEY_USB_VID);
-    USB.PID(OPENKEY_USB_PID);
-    USB.productName(OPENKEY_PRODUCT_STR);
-    USB.manufacturerName(OPENKEY_MANUFACTURER_STR);
-    USB.serialNumber("OK-F2-00000001");
-    USB.usbPower(100);
-    
-    fido_device.begin();
-    USB.begin();
 
     // Key is armed, authenticated, and in Solid Green Standby
     OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
