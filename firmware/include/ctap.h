@@ -227,13 +227,14 @@ public:
             enc.write_bytes(OPENKEY_AAGUID, 16);
         }
 
-        // 0x04: options map (4 standard keys per CTAP 2.0 specification)
+        // 0x04: options map
         // rk        — Resident/discoverable keys supported (up to 1,000 in flash)
         // up        — Physical user presence via BOOT button touch
         // plat      — false: external roaming security key
         // clientPin — false: PIN capability available but not set; true: PIN configured
+        // uv        — true when PIN is configured and user verification is supported
         enc.write_int(0x04);
-        enc.write_map_header(4);
+        enc.write_map_header(has_pin ? 5 : 4);
         enc.write_text("rk");
         enc.write_bool(true);
         enc.write_text("up");
@@ -242,6 +243,10 @@ public:
         enc.write_bool(false);
         enc.write_text("clientPin");
         enc.write_bool(has_pin);
+        if (has_pin) {
+            enc.write_text("uv");
+            enc.write_bool(true);
+        }
 
         // 0x05: maxMsgSize (1200 bytes)
         enc.write_int(0x05);
@@ -662,7 +667,12 @@ public:
         memcpy(auth_data + ad_offset, rk.rp_id_hash, 32);
         ad_offset += 32;
 
-        auth_data[ad_offset++] = AUTHDATA_FLAG_UP | AUTHDATA_FLAG_AT; // UP + AT flags
+        bool has_pin = OpenKey::Storage::get_vault().is_pin_set();
+        uint8_t flags = AUTHDATA_FLAG_UP | AUTHDATA_FLAG_AT;
+        if (has_pin) {
+            flags |= AUTHDATA_FLAG_UV; // User Verified (required for Passkeys & Windows Hello)
+        }
+        auth_data[ad_offset++] = flags;
 
         uint32_t count = rk.sign_counter;
         auth_data[ad_offset++] = (uint8_t)(count >> 24);
@@ -847,7 +857,12 @@ public:
         // Construct authData for GetAssertion (37 bytes: 32B rpIdHash || 1B flags || 4B signCount)
         uint8_t auth_data[37];
         memcpy(auth_data, rp_id_hash, 32);
-        auth_data[32] = AUTHDATA_FLAG_UP; // UP verified
+        bool has_pin = OpenKey::Storage::get_vault().is_pin_set();
+        uint8_t flags = AUTHDATA_FLAG_UP;
+        if (has_pin) {
+            flags |= AUTHDATA_FLAG_UV; // User Verified
+        }
+        auth_data[32] = flags;
         auth_data[33] = (uint8_t)(rk.sign_counter >> 24);
         auth_data[34] = (uint8_t)(rk.sign_counter >> 16);
         auth_data[35] = (uint8_t)(rk.sign_counter >> 8);
