@@ -235,12 +235,12 @@ async function webSerialInitHandshake() {
   webSerialCid = ((resp[15] << 24) | (resp[16] << 16) | (resp[17] << 8) | resp[18]) >>> 0;
   isWebSerialActive = true;
   activeDevice = {
-    path: "webserial:COM13",
-    vendor_id: 0x303a,
-    product_id: 0x822b,
+    path: "webserial:usb",
+    vendor_id: 0x1209,          // pid.codes Open Source VID (updated from 0x303A)
+    product_id: 0x0001,         // pid.codes dev/test PID
     manufacturer: "OpenKey Security",
-    product: "OpenKey ESP32-S3",
-    serial_number: "OK-S30-00000001"
+    product: "OpenKey FIDO2",
+    serial_number: "OK-F2-00000001"
   };
 }
 
@@ -253,7 +253,10 @@ async function requestWebSerialConnection() {
     serialReadBuffer = [];
     try {
       webSerialPort = await navigator.serial.requestPort({
-        filters: [{ usbVendorId: 0x303a }]
+        filters: [
+          { usbVendorId: 0x1209 }, // pid.codes VID (new firmware v1.1.0+)
+          { usbVendorId: 0x303a }  // Espressif VID (legacy firmware fallback)
+        ]
       });
     } catch (e) {
       webSerialPort = await navigator.serial.requestPort();
