@@ -7,7 +7,7 @@
  * Recommended Tools settings in Arduino IDE 2.3.x:
  * - Board: "Waveshare ESP32-S3-Zero" (or "ESP32S3 Dev Module")
  * - USB Mode: "USB-OTG (TinyUSB)"
- * - USB CDC On Boot: "Disabled"  <-- CRITICAL: Allows code to set custom VID 0x1209 / PID 0x5070
+ * - USB CDC On Boot: "Enabled"  <-- Required for composite CDC (Companion) + HID (FIDO2)
  * - Flash Size: "4MB (32Mb)"
  * - Partition Scheme: "Default 4MB with spiffs" or "Huge APP (3MB No OTA/1MB SPIFFS)"
  * - Upload Mode: "UART0 / Hardware CDC" or "Internal USB"

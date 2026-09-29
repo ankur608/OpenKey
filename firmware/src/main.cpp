@@ -16,6 +16,7 @@
 #include <Arduino.h>
 #include "USB.h"
 #include "USBHID.h"
+#include "esp32-hal-tinyusb.h"
 
 #include "../include/descriptors.h"
 #include "../include/vapt_security.h"
@@ -117,6 +118,33 @@ public:
 };
 
 static FidoUsbDevice fido_device;
+
+/**
+ * @brief USB Device Descriptor Callback Override
+ * Overrides TinyUSB's weak tud_descriptor_device_cb so that GET DEVICE DESCRIPTOR
+ * always returns SoloKeys / pid.codes VID 0x1209 & PID 0x5070 on the USB bus.
+ * This guarantees Android and Chrome identify OpenKey as a native FIDO2 security key,
+ * while allowing USB CDC on Boot: Enabled to run composite CDC + HID reliably.
+ */
+extern "C" uint8_t const *tud_descriptor_device_cb(void) {
+    static const tusb_desc_device_t openkey_device_descriptor = {
+        .bLength            = sizeof(tusb_desc_device_t),
+        .bDescriptorType    = TUSB_DESC_DEVICE,
+        .bcdUSB             = 0x0200,
+        .bDeviceClass       = TUSB_CLASS_MISC,
+        .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+        .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+        .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+        .idVendor           = OPENKEY_USB_VID,
+        .idProduct          = OPENKEY_USB_PID,
+        .bcdDevice          = OPENKEY_USB_BCD_DEVICE,
+        .iManufacturer      = 0x01,
+        .iProduct           = 0x02,
+        .iSerialNumber      = 0x03,
+        .bNumConfigurations = 0x01
+    };
+    return (uint8_t const *)&openkey_device_descriptor;
+}
 
 /**
  * @brief USB String Descriptor Callback Override
