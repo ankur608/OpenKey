@@ -310,9 +310,11 @@ public:
 
         switch (sub_cmd) {
             case 0x01: { // getPINRetries
-                resp.write_map_header(1);
-                resp.write_int(0x01); // pinRetries (Key 0x01 per CTAP 2.0 / 2.1)
+                resp.write_map_header(2);
+                resp.write_int(0x03); // pinRetries (Key 0x03 per FIDO CTAP 2.0 / 2.1 Specification)
                 resp.write_int(OpenKey::Storage::get_vault().get_pin_retries());
+                resp.write_int(0x04); // powerCycleState (Key 0x04: false = no power cycle required)
+                resp.write_bool(false);
                 *out_len = resp.get_size();
                 return CTAP1_ERR_SUCCESS;
             }
