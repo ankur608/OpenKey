@@ -1,6 +1,6 @@
 [package]
 name = "openkey-desktop-manager"
-version = "1.0.3"
+version = "1.0.5"
 description = "OpenKey 100% Open-Source Cross-Platform Hardware Security Key Manager"
 authors = ["OpenKey Security Foundation"]
 edition = "2021"

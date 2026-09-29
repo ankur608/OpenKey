@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-pub const OPENKEY_VID: u16 = 0x303A;
-pub const OPENKEY_PID: u16 = 0x1002;
+pub const OPENKEY_VID: u16 = 0x1209;
+pub const OPENKEY_PID: u16 = 0x5070;
+pub const OPENKEY_LEGACY_VID: u16 = 0x303A;
+pub const OPENKEY_LEGACY_PID: u16 = 0x1002;
 
 const CTAPHID_BROADCAST_CID: u32 = 0xFFFFFFFF;
 const CTAPHID_INIT: u8 = 0x06;
@@ -108,7 +110,7 @@ impl CtapHidConnection {
                     serialport::SerialPortType::UsbPort(usb) => {
                         vid = usb.vid;
                         pid = usb.pid;
-                        if usb.vid == OPENKEY_VID || usb.vid == 0x303A {
+                        if usb.vid == OPENKEY_VID || usb.vid == OPENKEY_LEGACY_VID {
                             is_match = true;
                             if let Some(m) = &usb.manufacturer {
                                 manufacturer = m.clone();
@@ -141,7 +143,7 @@ impl CtapHidConnection {
         // 2. Scan HID Devices (macOS, Linux, or non-Windows-fido-locked devices)
         if let Ok(api) = HidApi::new() {
             for dev in api.device_list() {
-                let is_openkey_vid = dev.vendor_id() == OPENKEY_VID;
+                let is_openkey_vid = dev.vendor_id() == OPENKEY_VID || dev.vendor_id() == OPENKEY_LEGACY_VID;
                 let is_fido_usage = dev.usage_page() == 0xF1D0;
 
                 // On Windows, if we already detected the OpenKey via Serial CDC, avoid the OS-locked HID entry

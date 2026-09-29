@@ -1,6 +1,6 @@
 {
   "name": "openkey-desktop-manager",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "OpenKey 100% Open-Source Cross-Platform Hardware Security Key Companion App",
   "scripts": {
     "start": "npx serve ui -l 3000",
