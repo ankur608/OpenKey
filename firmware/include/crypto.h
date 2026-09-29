@@ -189,6 +189,9 @@ public:
         CryptoRNG &rng = get_rng();
         if (!rng.init()) return false;
 
+        mbedtls_ecp_keypair_free(&keypair);
+        mbedtls_ecp_keypair_init(&keypair);
+
         int ret = mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, &keypair,
                                       mbedtls_ctr_drbg_random, rng.get_drbg());
         valid = (ret == 0);

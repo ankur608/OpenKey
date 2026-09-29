@@ -291,14 +291,17 @@ public:
             sub_cmd = in_payload[4];
         } else if (in_len >= 3 && in_payload[1] == 0x02) {
             sub_cmd = in_payload[2];
+        } else if (in_len >= 5 && in_payload[1] == 0x02 && in_payload[3] == 0x01) {
+            sub_cmd = in_payload[2];
         } else {
-            for (size_t i = 0; i + 1 < in_len; i++) {
+            // Strictly bounded search in CBOR map header (first 32 bytes only, avoiding random crypto payload)
+            size_t search_limit = (in_len < 32) ? in_len : 32;
+            for (size_t i = 1; i + 1 < search_limit; i++) {
                 if (in_payload[i] == 0x02 && in_payload[i + 1] >= 0x01 && in_payload[i + 1] <= 0x0A) {
-                    if (i > 0 && in_payload[i - 1] == 0x01 && (i == 1 || in_payload[i - 2] >= 0xA0)) {
-                        continue;
+                    if (in_payload[i - 1] != 0x58 && in_payload[i - 1] != 0x78) {
+                        sub_cmd = in_payload[i + 1];
+                        break;
                     }
-                    sub_cmd = in_payload[i + 1];
-                    break;
                 }
             }
         }
@@ -307,11 +310,9 @@ public:
 
         switch (sub_cmd) {
             case 0x01: { // getPINRetries
-                resp.write_map_header(2);
-                resp.write_int(0x01); // pinRetries (Key 0x01 per CTAP 2.1)
+                resp.write_map_header(1);
+                resp.write_int(0x01); // pinRetries (Key 0x01 per CTAP 2.0 / 2.1)
                 resp.write_int(OpenKey::Storage::get_vault().get_pin_retries());
-                resp.write_int(0x02); // powerCycleState (Key 0x02 per CTAP 2.1)
-                resp.write_bool(false);
                 *out_len = resp.get_size();
                 return CTAP1_ERR_SUCCESS;
             }
@@ -343,11 +344,11 @@ public:
                 uint8_t peer_x[32], peer_y[32];
                 bool found_x = false, found_y = false;
                 for (size_t i = 0; i + 34 <= in_len; i++) {
-                    if (in_payload[i] == 0x21 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
+                    if (!found_x && in_payload[i] == 0x21 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
                         memcpy(peer_x, in_payload + i + 3, 32);
                         found_x = true;
                     }
-                    if (in_payload[i] == 0x22 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
+                    if (!found_y && in_payload[i] == 0x22 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
                         memcpy(peer_y, in_payload + i + 3, 32);
                         found_y = true;
                     }
@@ -419,11 +420,11 @@ public:
                 uint8_t peer_x[32], peer_y[32];
                 bool found_x = false, found_y = false;
                 for (size_t i = 0; i + 34 <= in_len; i++) {
-                    if (in_payload[i] == 0x21 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
+                    if (!found_x && in_payload[i] == 0x21 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
                         memcpy(peer_x, in_payload + i + 3, 32);
                         found_x = true;
                     }
-                    if (in_payload[i] == 0x22 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
+                    if (!found_y && in_payload[i] == 0x22 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
                         memcpy(peer_y, in_payload + i + 3, 32);
                         found_y = true;
                     }
@@ -489,11 +490,11 @@ public:
                 uint8_t peer_x[32], peer_y[32];
                 bool found_x = false, found_y = false;
                 for (size_t i = 0; i + 34 <= in_len; i++) {
-                    if (in_payload[i] == 0x21 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
+                    if (!found_x && in_payload[i] == 0x21 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
                         memcpy(peer_x, in_payload + i + 3, 32);
                         found_x = true;
                     }
-                    if (in_payload[i] == 0x22 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
+                    if (!found_y && in_payload[i] == 0x22 && in_payload[i + 1] == 0x58 && in_payload[i + 2] == 0x20) {
                         memcpy(peer_y, in_payload + i + 3, 32);
                         found_y = true;
                     }

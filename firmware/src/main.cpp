@@ -58,7 +58,7 @@ struct CtapChannel {
     bool active;
 };
 
-#define MAX_CONCURRENT_CHANNELS 4
+#define MAX_CONCURRENT_CHANNELS 8
 static CtapChannel channels[MAX_CONCURRENT_CHANNELS];
 static uint32_t next_dynamic_cid = 0x00010001;
 
@@ -158,34 +158,67 @@ extern "C" uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t lang
 }
 
 /**
- * @brief Find or allocate a channel state tracker
+ * @brief Find or allocate a channel state tracker with LRU eviction
  */
 static CtapChannel* get_channel(uint32_t cid, bool allocate = false) {
     // 1. Search for existing active channel
     for (int i = 0; i < MAX_CONCURRENT_CHANNELS; i++) {
         if (channels[i].active && channels[i].cid == cid) {
+            channels[i].last_activity = millis();
             return &channels[i];
         }
     }
 
     if (!allocate) return nullptr;
 
-    // 2. Allocate free slot or evict timed-out channel (> 1000ms idle per Feature 7)
     uint32_t now = millis();
     int evict_idx = -1;
+
+    // 2. Prefer an inactive slot
     for (int i = 0; i < MAX_CONCURRENT_CHANNELS; i++) {
         if (!channels[i].active) {
             evict_idx = i;
             break;
         }
-        if (now - channels[i].last_activity > 30000) {
-            evict_idx = i;
-            OpenKey::Security::secure_wipe(channels[i].buffer, sizeof(channels[i].buffer));
-            channels[i].active = false;
+    }
+
+    // 3. If no inactive slot, look for idle channel (> 2000ms idle per CTAPHID spec)
+    if (evict_idx < 0) {
+        for (int i = 0; i < MAX_CONCURRENT_CHANNELS; i++) {
+            if (now - channels[i].last_activity > 2000) {
+                evict_idx = i;
+                break;
+            }
+        }
+    }
+
+    // 4. If all slots active within 2000ms, evict the LRU (least recently used) slot
+    // that is NOT in the middle of reassembling a multi-packet transaction
+    if (evict_idx < 0) {
+        uint32_t oldest_time = 0xFFFFFFFF;
+        for (int i = 0; i < MAX_CONCURRENT_CHANNELS; i++) {
+            if (channels[i].received_len == 0 || channels[i].received_len >= channels[i].total_len) {
+                if (channels[i].last_activity < oldest_time) {
+                    oldest_time = channels[i].last_activity;
+                    evict_idx = i;
+                }
+            }
+        }
+    }
+
+    // 5. Absolute fallback: pick oldest channel unconditionally
+    if (evict_idx < 0) {
+        uint32_t oldest_time = 0xFFFFFFFF;
+        for (int i = 0; i < MAX_CONCURRENT_CHANNELS; i++) {
+            if (channels[i].last_activity < oldest_time) {
+                oldest_time = channels[i].last_activity;
+                evict_idx = i;
+            }
         }
     }
 
     if (evict_idx >= 0) {
+        OpenKey::Security::secure_wipe(channels[evict_idx].buffer, sizeof(channels[evict_idx].buffer));
         channels[evict_idx].cid = cid;
         channels[evict_idx].active = true;
         channels[evict_idx].last_activity = now;
@@ -319,6 +352,12 @@ static void process_assembled_message(CtapChannel *chan) {
             }
 
             send_ctaphid_response(chan->cid, CTAPHID_INIT, init_resp, sizeof(init_resp));
+            if (chan->cid == 0xFFFFFFFF) {
+                chan->active = false;
+                chan->received_len = 0;
+                chan->total_len = 0;
+                OpenKey::Security::secure_wipe(chan->buffer, sizeof(chan->buffer));
+            }
             break;
         }
 
@@ -674,6 +713,10 @@ void process_incoming_hid_packet(const uint8_t *packet_64b, bool from_serial) {
 
         if (chan->received_len >= chan->total_len) {
             process_assembled_message(chan);
+            chan->received_len = 0;
+            chan->total_len = 0;
+            chan->seq = 0;
+            OpenKey::Security::secure_wipe(chan->buffer, sizeof(chan->buffer));
         }
     } else {
         // --- CONTINUATION (CONT) FRAME ---
@@ -701,6 +744,10 @@ void process_incoming_hid_packet(const uint8_t *packet_64b, bool from_serial) {
 
         if (chan->received_len >= chan->total_len) {
             process_assembled_message(chan);
+            chan->received_len = 0;
+            chan->total_len = 0;
+            chan->seq = 0;
+            OpenKey::Security::secure_wipe(chan->buffer, sizeof(chan->buffer));
         }
     }
 }
