@@ -217,15 +217,15 @@ public:
     }
 
     /**
-     * @brief Air-Gapped Master Factory Wipe: 20-Second Hardware BOOT-Hold Check
+     * @brief Air-Gapped Master Factory Wipe & PIN Reset: 4-Second Hardware BOOT-Hold Check
      * 
      * Must be called at the very beginning of setup().
-     * If GPIO 0 is held continuously for 20.0 seconds upon power-up:
-     *   - Phase 1 (0..7s): Solid Yellow
-     *   - Phase 2 (7..14s): Solid Warning Red
-     *   - Phase 3 (14..20s): Rapid Flashing White (Brightness 150)
-     *   - 20.0s: Executes wipe_cb(), flashes green 5 times, and halts.
-     * Releasing the button at any moment prior to 20s aborts immediately.
+     * If GPIO 0 (BOOT button) is held continuously for 4.0 seconds upon power-up/plug-in:
+     *   - Phase 1 (0..1.5s): Solid Yellow Warning
+     *   - Phase 2 (1.5..3s): Solid Critical Red
+     *   - Phase 3 (3..4s)  : Rapid Flashing White Countdown Strobe
+     *   - 4.0s: Executes wipe_cb() (full NVS wipe + PIN reset to 8 retries), flashes Green 5x, boots fresh.
+     * Releasing the button prior to 4s aborts cleanly.
      */
     bool check_power_on_wipe(void (*wipe_cb)()) {
         pinMode(BUTTON_BOOT_PIN, INPUT_PULLUP);
@@ -234,40 +234,40 @@ public:
         }
 
         uint32_t hold_start = millis();
-        const uint32_t TOTAL_WIPE_TIME_MS = 20000;
+        const uint32_t TOTAL_WIPE_TIME_MS = 4000;
 
         while (digitalRead(BUTTON_BOOT_PIN) == LOW) {
             uint32_t elapsed = millis() - hold_start;
             if (elapsed >= TOTAL_WIPE_TIME_MS) {
-                // 20 Seconds reached! Execute master wipe
+                // 4 Seconds reached! Execute master wipe & PIN reset
                 if (wipe_cb) wipe_cb();
 
                 // Flash confirmation green 5 times
                 for (int i = 0; i < 5; i++) {
                     set_rgb_explicit(0, 255, 0, 150);
-                    delay(100);
+                    delay(80);
                     set_rgb_explicit(0, 0, 0, 0);
-                    delay(100);
+                    delay(80);
                 }
                 set_state(LedState::STANDBY_GREEN);
                 return true;
             }
 
-            if (elapsed < 7000) {
-                // Phase 1 (0..7s): Solid Yellow Warning
+            if (elapsed < 1500) {
+                // Phase 1 (0..1.5s): Solid Yellow Warning
                 set_rgb_explicit(255, 180, 0, 60);
-            } else if (elapsed < 14000) {
-                // Phase 2 (7..14s): Solid Critical Red
+            } else if (elapsed < 3000) {
+                // Phase 2 (1.5..3s): Solid Critical Red
                 set_rgb_explicit(255, 0, 0, 100);
             } else {
-                // Phase 3 (14..20s): Rapid Flashing White Countdown Strobe
+                // Phase 3 (3..4s): Rapid Flashing White Countdown Strobe
                 bool strobe = (elapsed / 60) % 2 == 0;
                 set_rgb_explicit(255, 255, 255, strobe ? 150 : 0);
             }
             delay(10);
         }
 
-        // Released before 20 seconds: abort cleanly
+        // Released before 4 seconds: abort cleanly
         set_state(LedState::STANDBY_GREEN);
         return false;
     }

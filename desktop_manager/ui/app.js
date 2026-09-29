@@ -402,6 +402,20 @@ const invoke = async (cmd, args) => {
       return true;
     }
 
+    case "reset_device_pin": {
+      if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
+      const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x07]));
+      if (resp.length === 0 || resp[0] !== 0x00) {
+        throw new Error("Failed to reset PIN on hardware (touch confirmation timed out)");
+      }
+      pinConfigured = false;
+      const p1 = document.getElementById("input-new-pin");
+      if (p1) p1.value = "";
+      const p2 = document.getElementById("input-confirm-pin");
+      if (p2) p2.value = "";
+      return true;
+    }
+
     case "factory_reset_device": {
       if (!isWebSerialActive) throw new Error("No OpenKey connected or authorised");
       const resp = await sendWebSerialCtapCommand(webSerialCid, 0x41, new Uint8Array([0x05]));
@@ -1019,6 +1033,29 @@ function setupEventListeners() {
         })
         .catch(err => {
           alert("Failed to update PIN: " + err.message);
+        });
+    });
+  }
+
+  // PIN Unblock & Clear
+  const btnResetPin = document.getElementById("btn-reset-pin");
+  if (btnResetPin) {
+    btnResetPin.addEventListener("click", () => {
+      if (!activeDevice) {
+        alert("Please connect your OpenKey first.");
+        return;
+      }
+      if (!confirm("Unblock & Clear PIN?\n\nThis will remove the current PIN and restore 8 retries. Your master seed and credentials will be preserved.\n\nYou will need to press the key's BOOT button to confirm.")) {
+        return;
+      }
+      showToast("Please touch the BOOT button on OpenKey to authorize PIN clear...");
+      invoke("reset_device_pin")
+        .then(() => {
+          showToast("OpenKey PIN successfully cleared & unblocked (8 retries restored)!");
+          if (activeDevice) queryDeviceTelemetry(activeDevice.path);
+        })
+        .catch(err => {
+          alert("Failed to clear PIN: " + err.message);
         });
     });
   }

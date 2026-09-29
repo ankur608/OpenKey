@@ -590,6 +590,27 @@ static void process_assembled_message(CtapChannel *chan) {
                     return;
                 }
 
+                case 0x07: { // VENDOR_CMD_RESET_PIN (Unblocks locked PIN & clears PIN)
+                    // Enforce physical user presence touch on BOOT button
+                    if (!OpenKey::Peripherals::get_peripherals().verify_user_presence(keepalive_sender, chan->cid, 15000)) {
+                        send_ctaphid_error(chan->cid, CTAP2_ERR_ACTION_TIMEOUT);
+                        return;
+                    }
+                    OpenKey::Storage::get_vault().reset_pin();
+
+                    for (int i = 0; i < 3; i++) {
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::SUCCESS_GREEN);
+                        delay(70);
+                        OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::OFF);
+                        delay(70);
+                    }
+                    OpenKey::Peripherals::get_peripherals().set_state(OpenKey::Peripherals::LedState::STANDBY_GREEN);
+
+                    resp_buf[0] = 0x00;
+                    send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 1);
+                    return;
+                }
+
                 default:
                     send_ctaphid_error(chan->cid, CTAP2_ERR_INVALID_PARAMETER);
                     return;

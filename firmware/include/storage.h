@@ -200,6 +200,14 @@ public:
         return true;
     }
 
+    bool reset_pin() {
+        memset(config.pin_hash, 0, sizeof(config.pin_hash));
+        config.pin_retries_remaining = OpenKey::Security::PinSecurityPolicy::MAX_PIN_RETRIES;
+        config.min_pin_length = OpenKey::Security::PinSecurityPolicy::MIN_PIN_LENGTH;
+        save_config();
+        return true;
+    }
+
     /**
      * @brief Constant-time PIN Verification with Monotonic Rate Limiting
      * Supports both 16-byte CTAP2 pinHash and full 32-byte hashes
