@@ -1,8 +1,8 @@
 /**
- * @file forge.js
- * @brief OpenKey Forge — Web Serial Hardware Onboarding & Firmware Flasher
+ * @file keeforge.js
+ * @brief KeeForge — Standalone ESP32-S3 Hardware Onboarding & Web Serial Flasher Engine
  * 
- * Features:
+ * Capabilities:
  * - Direct ESP32-S3 ROM bootloader flashing over Web Serial (esptool-js)
  * - Intel HEX & Raw Binary parser and segment inspector
  * - Method 2: Dynamic Silicon eFuse Fingerprint & Unique Serial Generator (OK-F2-XXXXXXXX)
@@ -241,7 +241,7 @@ async function connectBootloader() {
 
     espTransport = new Transport(serialPort);
     
-    // Custom terminal logger hooked to Forge UI
+    // Custom terminal logger hooked to KeeForge UI
     const customTerminal = {
       clean() {},
       writeLine(data) { logLine(String(data).trim(), "info"); },
@@ -344,7 +344,7 @@ async function startFlashing() {
 
   try {
     logLine("==========================================", "info");
-    logLine("⚡ Starting OpenKey Firmware Flash...", "info");
+    logLine("⚡ Starting OpenKey Firmware Flash via KeeForge...", "info");
     updateProgress(5, "Preparing flash memory...");
 
     // Format file array for esptool-js
@@ -400,7 +400,6 @@ async function loadOfficialFirmware() {
   logLine("Fetching latest OpenKey official firmware build...", "info");
   try {
     // Generate synthesized compliant OpenKey binary envelope
-    // Header for ESP32-S3 image (Magic 0xE9, 4 segments)
     const header = new Uint8Array(32);
     header[0] = 0xE9; // Magic byte
     header[1] = 0x04; // Segment count
@@ -433,27 +432,27 @@ async function loadOfficialFirmware() {
 
 // --- Setup Event Listeners ---
 document.addEventListener("DOMContentLoaded", () => {
-  // Theme Toggle
-  const radioDark = document.getElementById("radio-forge-dark");
-  const radioLight = document.getElementById("radio-forge-light");
+  // Theme Switching
+  const btnDark = document.getElementById("btn-theme-dark");
+  const btnLight = document.getElementById("btn-theme-light");
   const savedTheme = localStorage.getItem("openkey_theme") || "dark";
 
-  if (savedTheme === "light" && radioLight) {
-    radioLight.checked = true;
-    document.body.setAttribute("data-theme", "light");
-  } else if (radioDark) {
-    radioDark.checked = true;
-    document.body.setAttribute("data-theme", "dark");
+  function applyTheme(theme) {
+    document.body.setAttribute("data-theme", theme);
+    localStorage.setItem("openkey_theme", theme);
+    if (theme === "light") {
+      if (btnLight) btnLight.classList.add("active");
+      if (btnDark) btnDark.classList.remove("active");
+    } else {
+      if (btnDark) btnDark.classList.add("active");
+      if (btnLight) btnLight.classList.remove("active");
+    }
   }
 
-  if (radioDark) radioDark.addEventListener("change", () => {
-    document.body.setAttribute("data-theme", "dark");
-    localStorage.setItem("openkey_theme", "dark");
-  });
-  if (radioLight) radioLight.addEventListener("change", () => {
-    document.body.setAttribute("data-theme", "light");
-    localStorage.setItem("openkey_theme", "light");
-  });
+  applyTheme(savedTheme);
+
+  if (btnDark) btnDark.addEventListener("click", () => applyTheme("dark"));
+  if (btnLight) btnLight.addEventListener("click", () => applyTheme("light"));
 
   // Source Tabs
   const sourceTabs = document.querySelectorAll("#firmware-source-tabs .card-tab");

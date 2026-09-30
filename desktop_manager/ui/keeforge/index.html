@@ -3,224 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenKey Forge — Hardware Onboarding & Web Flasher</title>
-  <link rel="stylesheet" href="app.css?v=1.0.8" />
+  <title>KeeForge — ESP32-S3 Hardware Onboarding & Web Flasher</title>
+  <link rel="stylesheet" href="keeforge.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    /* OpenKey Forge Dedicated Styles */
-    .forge-container {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 30px 24px 60px 24px;
-    }
-
-    .forge-header-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 28px;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-
-    .forge-brand-wrap {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .badge-forge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: linear-gradient(135deg, rgba(255, 90, 54, 0.2) 0%, rgba(245, 158, 11, 0.15) 100%);
-      border: 1px solid rgba(255, 90, 54, 0.4);
-      border-radius: var(--radius-pill);
-      color: var(--accent-coral);
-      font-size: 0.75rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .step-card {
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 24px;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-lg);
-      background: var(--bg-surface);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      padding: 24px;
-      transition: all 0.3s ease;
-    }
-
-    .step-card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
-    }
-
-    .step-number-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--accent-coral);
-      color: #FFFFFF;
-      font-family: var(--font-hero);
-      font-weight: 800;
-      font-size: 0.85rem;
-      box-shadow: 0 0 12px var(--accent-coral-glow);
-      margin-right: 10px;
-    }
-
-    .step-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 18px;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .dropzone {
-      border: 2px dashed rgba(255, 255, 255, 0.15);
-      border-radius: var(--radius-md);
-      padding: 32px 20px;
-      text-align: center;
-      background: rgba(0, 0, 0, 0.15);
-      cursor: pointer;
-      transition: all 0.25s ease;
-    }
-
-    .dropzone:hover, .dropzone.dragover {
-      border-color: var(--accent-cyan);
-      background: rgba(6, 182, 212, 0.05);
-    }
-
-    [data-theme="light"] .dropzone {
-      border-color: #CBD5E1;
-      background: #F8FAFC;
-    }
-
-    [data-theme="light"] .dropzone:hover, [data-theme="light"] .dropzone.dragover {
-      border-color: #0284C7;
-      background: #F0F9FF;
-    }
-
-    .terminal-window {
-      background: #06080D;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--radius-md);
-      font-family: var(--font-mono);
-      font-size: 0.78rem;
-      color: #A7F3D0;
-      height: 180px;
-      overflow-y: auto;
-      padding: 14px 16px;
-      line-height: 1.5;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.7);
-    }
-
-    [data-theme="light"] .terminal-window {
-      background: #0F172A;
-      color: #38BDF8;
-    }
-
-    .terminal-line {
-      margin-bottom: 3px;
-      word-break: break-all;
-    }
-
-    .terminal-line.info { color: #38BDF8; }
-    .terminal-line.success { color: #34D399; font-weight: 600; }
-    .terminal-line.warn { color: #FBBF24; }
-    .terminal-line.error { color: #F87171; font-weight: 700; }
-
-    .progress-radial-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px 0;
-    }
-
-    .progress-circle-svg {
-      width: 130px;
-      height: 130px;
-      transform: rotate(-90deg);
-    }
-
-    .progress-circle-bg {
-      stroke: var(--gauge-ring);
-    }
-
-    .progress-circle-bar {
-      stroke: var(--accent-coral);
-      transition: stroke-dashoffset 0.2s ease, stroke 0.3s ease;
-      filter: drop-shadow(0 0 8px var(--accent-coral-glow));
-    }
-
-    .progress-percent-label {
-      position: absolute;
-      font-family: var(--font-hero);
-      font-size: 1.8rem;
-      font-weight: 800;
-      color: var(--text-primary);
-    }
-
-    .hex-segment-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 8px;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 4px;
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-    }
-  </style>
 </head>
 <body>
   <div class="glow-sphere glow-sphere-1"></div>
   <div class="glow-sphere glow-sphere-2"></div>
 
-  <div class="forge-container">
+  <div class="keeforge-container">
     <!-- Top Navigation Bar -->
-    <header class="forge-header-bar">
-      <div class="forge-brand-wrap">
+    <header class="keeforge-header-bar">
+      <div class="brand-wrap">
         <div class="brand-wordmark">
-          <span class="brand-open">Open</span><span class="brand-key">Key</span>
+          <span class="brand-kee">Kee</span><span class="brand-forge">Forge</span>
         </div>
-        <span class="badge-forge">⚡ FORGE</span>
+        <span class="badge-keeforge">⚡ HARDWARE UTILITY</span>
       </div>
 
       <div style="display:flex; align-items:center; gap:12px;">
-        <a href="index.html" class="btn btn-glass btn-sm" title="Return to OpenKey Web Companion">
-          ← Back to Companion
+        <a href="../index.html" class="btn btn-glass btn-sm" title="Return to OpenKey Web Companion">
+          ← OpenKey Companion
         </a>
-        <div class="theme-radios" style="background:rgba(0,0,0,0.25); padding:3px; border-radius:9999px; border:1px solid var(--glass-border);">
-          <label class="radio-label" style="padding:4px 10px; font-size:0.75rem;">
-            <input type="radio" name="forge-theme" value="dark" checked id="radio-forge-dark">
-            <span>Dark</span>
-          </label>
-          <label class="radio-label" style="padding:4px 10px; font-size:0.75rem;">
-            <input type="radio" name="forge-theme" value="light" id="radio-forge-light">
-            <span>Light</span>
-          </label>
+        <div class="theme-radios" style="background:rgba(0,0,0,0.25); padding:3px; border-radius:9999px; border:1px solid var(--glass-border); display:flex; gap:3px;">
+          <button id="btn-theme-dark" class="card-tab active" style="font-size:0.75rem; padding:4px 10px;">Dark</button>
+          <button id="btn-theme-light" class="card-tab" style="font-size:0.75rem; padding:4px 10px;">Light</button>
         </div>
       </div>
     </header>
 
-    <!-- Subtitle / Hero -->
+    <!-- Hero / Headline -->
     <div class="mb-25">
-      <h1 class="hero-title" style="font-size:clamp(1.8rem, 3.2vw, 2.4rem);">Hardware Onboarding & Firmware Flasher</h1>
-      <p class="subtitle">Transform off-the-shelf ESP32-S3 boards into hardened OpenKey FIDO2 authenticators over Web Serial.</p>
+      <h1 class="hero-title">Zero-Install Hardware Onboarding & Flasher</h1>
+      <p class="subtitle">Turn off-the-shelf Waveshare ESP32-S3 boards into hardened OpenKey FIDO2 hardware tokens directly over Web Serial.</p>
     </div>
 
     <!-- STEP 1: CONNECT & SILICON FINGERPRINT -->
@@ -236,10 +53,10 @@
         <span class="badge badge-info" id="badge-board-state">Disconnected</span>
       </div>
 
-      <div class="grid grid-2" style="gap:16px;">
+      <div class="grid grid-2">
         <div>
-          <p class="text-xs text-muted mb-12">
-            <strong>First time setup:</strong> Hold the <strong>BOOT</strong> button on your Waveshare ESP32-S3 board while plugging into USB-C, then click <em>Connect Bootloader</em>.
+          <p class="text-xs text-muted" style="margin-bottom:14px; line-height:1.6;">
+            <strong>First time setup:</strong> Hold the physical <strong>BOOT</strong> button on your Waveshare ESP32-S3 board while plugging the USB-C cable into your PC, then click <em>Connect Bootloader</em>.
           </p>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button id="btn-connect-bootloader" class="btn btn-primary">
@@ -256,9 +73,9 @@
         <!-- Silicon Hardware Identity Card (Method 2) -->
         <div class="metric-tile" style="padding:16px;">
           <span class="metric-label">SILICON UNIQUE HARDWARE IDENTITY (METHOD 2)</span>
-          <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px;">
+          <div style="margin-top:8px; display:flex; flex-direction:column; gap:5px;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
-              <span class="text-xs text-muted">Chip Family:</span>
+              <span class="text-xs text-muted">Chip Architecture:</span>
               <strong id="disp-chip-model" class="mono text-xs">Waiting for connection...</strong>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -270,8 +87,8 @@
               <span id="disp-unique-serial" class="badge badge-mini badge-cyan mono">OK-F2-7E64D054</span>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between;">
-              <span class="text-xs text-muted">Flash Capacity:</span>
-              <span id="disp-flash-size" class="mono text-xs">4MB SPI Flash</span>
+              <span class="text-xs text-muted">Flash Partitioning:</span>
+              <span id="disp-flash-size" class="mono text-xs">4MB Dual-Bank OTA Ready</span>
             </div>
           </div>
         </div>
@@ -300,7 +117,7 @@
           <div>
             <strong>OpenKey Core Firmware v1.0.5</strong>
             <div class="text-muted text-xs mt-5">
-              Includes CTAP 2.1 UV passkey engine, composite USB CDC+HID, and live NVS hardware enumeration.
+              Dual CDC+HID composite stack, CTAP 2.1 UV passkey engine, and live NVS hardware enumeration.
             </div>
           </div>
           <div style="display:flex; gap:10px;">
@@ -363,7 +180,7 @@
         <span class="badge badge-emerald">Default SoloKeys Profile</span>
       </div>
 
-      <div class="grid grid-3" style="gap:14px;">
+      <div class="grid grid-3">
         <div>
           <label class="metric-label">Vendor ID (VID)</label>
           <input type="text" id="cfg-vid" class="input-glass mt-5" value="0x1209" style="font-family:var(--font-mono);" />
@@ -424,18 +241,16 @@
             <button id="btn-clear-console" class="btn btn-glass btn-sm" style="font-size:0.7rem; padding:2px 8px;">Clear</button>
           </div>
           <div class="terminal-window" id="forge-terminal">
-            <div class="terminal-line info">[Forge] OpenKey Forge ready. Connect ESP32-S3 to begin.</div>
+            <div class="terminal-line info">[KeeForge] Utility ready. Connect Waveshare ESP32-S3 to begin.</div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast"></div>
-
-  <!-- esptool-js official bundle for Web Serial flashing -->
+  <!-- esptool-js official bundle -->
   <script src="esptool-bundle.js"></script>
-  <!-- OpenKey Forge Application Logic -->
-  <script src="forge.js"></script>
+  <!-- KeeForge Controller Logic -->
+  <script src="keeforge.js"></script>
 </body>
 </html>
