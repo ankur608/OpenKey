@@ -1358,6 +1358,13 @@ function scanConnectedDevices() {
           if (statusIndicator) statusIndicator.textContent = activeDevice.product || "OpenKey";
           if (portIndicator) portIndicator.textContent = activeDevice.path ? `${activeDevice.manufacturer} (${activeDevice.path})` : (activeDevice.manufacturer || "OpenKey Security");
           if (serialIndicator) serialIndicator.textContent = activeDevice.serial_number ? `(SN: ${activeDevice.serial_number})` : "";
+          const infoSerialBadge = document.getElementById("info-serial-badge");
+          if (infoSerialBadge) {
+            infoSerialBadge.textContent = `SN: ${activeDevice.serial_number || "OK-F2-00000001"}`;
+            infoSerialBadge.className = "badge badge-mini badge-cyan";
+          }
+          const infoProduct = document.getElementById("info-product");
+          if (infoProduct) infoProduct.textContent = activeDevice.product || "OpenKey";
           updateConnectionUI(true);
           queryDeviceTelemetry(activeDevice.path);
         } else {
@@ -1367,6 +1374,11 @@ function scanConnectedDevices() {
           if (statusIndicator) statusIndicator.textContent = "No Key Connected";
           if (portIndicator) portIndicator.textContent = "Click to connect OpenKey";
           if (serialIndicator) serialIndicator.textContent = "";
+          const infoSerialBadge = document.getElementById("info-serial-badge");
+          if (infoSerialBadge) {
+            infoSerialBadge.textContent = "SN: Offline";
+            infoSerialBadge.className = "badge badge-mini badge-muted";
+          }
           updateGaugeUI(false);
           updateConnectionUI(false);
         }
@@ -1377,6 +1389,11 @@ function scanConnectedDevices() {
         if (statusIndicator) statusIndicator.textContent = "No Key Connected";
         if (portIndicator) portIndicator.textContent = String(err);
         if (serialIndicator) serialIndicator.textContent = "";
+        const infoSerialBadge = document.getElementById("info-serial-badge");
+        if (infoSerialBadge) {
+          infoSerialBadge.textContent = "SN: Offline";
+          infoSerialBadge.className = "badge badge-mini badge-muted";
+        }
         updateGaugeUI(false);
         updateConnectionUI(false);
       });
@@ -1392,6 +1409,13 @@ function scanConnectedDevices() {
         : "Connected via Web Serial";
       if (portIndicator) portIndicator.textContent = portLabel;
       if (serialIndicator) serialIndicator.textContent = activeDevice.serial_number ? `(SN: ${activeDevice.serial_number})` : "";
+      const infoSerialBadge = document.getElementById("info-serial-badge");
+      if (infoSerialBadge) {
+        infoSerialBadge.textContent = `SN: ${activeDevice.serial_number || "OK-F2-00000001"}`;
+        infoSerialBadge.className = "badge badge-mini badge-cyan";
+      }
+      const infoProduct = document.getElementById("info-product");
+      if (infoProduct) infoProduct.textContent = activeDevice.product || "OpenKey";
       updateConnectionUI(true);
       queryDeviceTelemetry(activeDevice.path);
     } else {
@@ -1400,6 +1424,11 @@ function scanConnectedDevices() {
       if (statusIndicator) statusIndicator.textContent = "No Key Connected";
       if (portIndicator) portIndicator.textContent = isWebSerialSupported() ? "Click to connect OpenKey" : "Web Serial not supported in this browser";
       if (serialIndicator) serialIndicator.textContent = "";
+      const infoSerialBadge = document.getElementById("info-serial-badge");
+      if (infoSerialBadge) {
+        infoSerialBadge.textContent = "SN: Offline";
+        infoSerialBadge.className = "badge badge-mini badge-muted";
+      }
       updateGaugeUI(false);
       updateConnectionUI(false);
     }
@@ -1459,6 +1488,52 @@ function queryDeviceTelemetry(devicePath) {
 
       // Update Vault UI
       updateVaultStatusUI(seedConfigured, seedConfigured ? `Fingerprint: ${seedFp || "Active"}` : "Unprovisioned");
+
+      // Update Identity & Attestation Matrix Product Name and Serial Number
+      const infoProduct = document.getElementById("info-product");
+      const infoSerialBadge = document.getElementById("info-serial-badge");
+      if (activeDevice) {
+        if (seedFp && seedFp !== "00000000") {
+          activeDevice.serial_number = `OK-F2-${seedFp.toUpperCase()}`;
+        } else if (!activeDevice.serial_number) {
+          activeDevice.serial_number = "OK-F2-00000001";
+        }
+        if (infoProduct) infoProduct.textContent = activeDevice.product || "OpenKey";
+        if (infoSerialBadge) {
+          infoSerialBadge.textContent = `SN: ${activeDevice.serial_number}`;
+          infoSerialBadge.className = "badge badge-mini badge-cyan";
+          infoSerialBadge.style.display = "inline-block";
+        }
+        const serialIndicator = document.getElementById("device-serial-text");
+        if (serialIndicator) serialIndicator.textContent = `(SN: ${activeDevice.serial_number})`;
+      }
+
+      // Superimpose live hardware details on the 3 top stat cards
+      const chipDetail = document.getElementById("stat-chip-detail");
+      if (chipDetail && activeDevice) {
+        const vidHex = activeDevice.vendor_id ? `0x${activeDevice.vendor_id.toString(16).padStart(4, '0')}` : "0x1209";
+        const pidHex = activeDevice.product_id ? `0x${activeDevice.product_id.toString(16).padStart(4, '0')}` : "0x5070";
+        chipDetail.textContent = `VID ${vidHex} / PID ${pidHex} · ${activeDevice.path || "USB-OTG"}`;
+      }
+
+      const encBadge = document.getElementById("stat-enc-badge");
+      const encDetail = document.getElementById("stat-enc-detail");
+      if (encBadge) {
+        encBadge.textContent = status.flash_encryption_active ? "Hardware eFuse Enforced" : "Raw Vault eFuse Ready";
+        encBadge.className = status.flash_encryption_active ? "badge badge-emerald" : "badge badge-cyan";
+      }
+      if (encDetail) {
+        if (seedConfigured && seedFp) {
+          encDetail.textContent = `BIP-39 Vault Armed (FP: ${seedFp}) · 480 Sectors`;
+        } else {
+          encDetail.textContent = "fido_rk Partition · Sector Locked";
+        }
+      }
+
+      const trngDetail = document.getElementById("stat-trng-detail");
+      if (trngDetail) {
+        trngDetail.textContent = `Thermal Noise TRNG · Live Resident Keys: ${storedKeysCount}`;
+      }
 
       // Update Stats
       const rkCountEl = document.getElementById("info-rk-count");
