@@ -1,0 +1,63 @@
+name: "Build OpenKey Hardware Firmware"
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-firmware:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO Core
+        run: |
+          pip install --upgrade platformio
+
+      - name: Build Firmware with PlatformIO
+        working-directory: firmware
+        run: |
+          pio run -e esp32-s3-zero
+
+      - name: Export Intel HEX & Unified Binaries
+        working-directory: firmware
+        run: |
+          mkdir -p ../dist_firmware
+          cp .pio/build/esp32-s3-zero/firmware.bin ../dist_firmware/openkey-esp32s3-v1.0.5.bin
+          # Generate Intel HEX representation
+          python -c "
+          import binascii
+          with open('../dist_firmware/openkey-esp32s3-v1.0.5.bin', 'rb') as f:
+              data = f.read()
+          with open('../dist_firmware/openkey-esp32s3-v1.0.5.hex', 'w') as out:
+              # Extended linear address 0x00010000
+              out.write(':020000040001F9\n')
+              for i in range(0, len(data), 16):
+                  chunk = data[i:i+16]
+                  length = len(chunk)
+                  addr = i & 0xFFFF
+                  record_type = 0
+                  line_data = bytes([length, (addr >> 8) & 0xFF, addr & 0xFF, record_type]) + chunk
+                  checksum = ((~sum(line_data) + 1) & 0xFF)
+                  out.write(':' + line_data.hex().upper() + f'{checksum:02X}\n')
+              out.write(':00000001FF\n')
+          "
+          ls -la ../dist_firmware
+
+      - name: Upload Firmware Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkey-firmware-esp32s3
+          path: dist_firmware/*

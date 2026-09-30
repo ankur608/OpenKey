@@ -146,6 +146,27 @@ extern "C" uint8_t const *tud_descriptor_device_cb(void) {
     return (uint8_t const *)&openkey_device_descriptor;
 }
 
+#include "esp_mac.h"
+#include "mbedtls/sha256.h"
+#include "soc/rtc_cntl_reg.h"
+
+static char g_silicon_serial[16] = "OK-F2-00000001";
+static bool g_silicon_serial_initialized = false;
+
+static const char* get_silicon_serial() {
+    if (!g_silicon_serial_initialized) {
+        g_silicon_serial_initialized = true;
+        uint8_t mac[6] = {0};
+        if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
+            uint8_t hash[32];
+            mbedtls_sha256(mac, 6, hash, 0);
+            snprintf(g_silicon_serial, sizeof(g_silicon_serial), "OK-F2-%02X%02X%02X%02X",
+                     hash[0], hash[1], hash[2], hash[3]);
+        }
+    }
+    return g_silicon_serial;
+}
+
 /**
  * @brief USB String Descriptor Callback Override
  * Overrides TinyUSB's weak tud_descriptor_string_cb so that all string requests
@@ -167,7 +188,7 @@ extern "C" uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t lang
         } else if (index == 2) {
             str = OPENKEY_PRODUCT_STR;          // "OpenKey FIDO2"
         } else if (index == 3) {
-            str = "OK-F2-00000001";             // Serial number (OK-F2 = OpenKey FIDO2)
+            str = get_silicon_serial();         // Method 2: Dynamic Silicon eFuse Unique Serial
         } else {
             // Interface string (index 4+: FIDO HID interface name shown in device managers)
             str = OPENKEY_INTERFACE_HID_STR;    // "OpenKey FIDO2 Security Key"
@@ -710,6 +731,17 @@ static void process_assembled_message(CtapChannel *chan) {
                     resp_buf[0] = 0x00;
                     resp_buf[1] = count;
                     send_ctaphid_response(chan->cid, chan->cmd, resp_buf, (uint16_t)offset);
+                    return;
+                }
+
+                case 0x0A: { // VENDOR_CMD_REBOOT_BOOTLOADER (KeeForge One-Click Flasher Mode)
+                    resp_buf[0] = 0x00;
+                    send_ctaphid_response(chan->cid, chan->cmd, resp_buf, 1);
+                    delay(50);
+                    #if defined(RTC_CNTL_FORCE_DOWNLOAD_BOOT)
+                    REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+                    #endif
+                    esp_restart();
                     return;
                 }
 

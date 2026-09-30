@@ -1542,6 +1542,9 @@ function queryDeviceTelemetry(devicePath) {
       const passkeyCapEl = document.getElementById("passkey-capacity-stat");
       if (passkeyCapEl) passkeyCapEl.textContent = `${storedKeysCount} / 1,000`;
 
+      // Phase 4: In-Session OTA Version Check Banner
+      checkFirmwareVersionUpdates(status.firmware_version || "1.0.0");
+
       const pinRetriesEl = document.getElementById("pin-retries-hint");
       const inputProfilePin = document.getElementById("input-profile-pin");
       const profilePinHint = document.getElementById("profile-pin-hint");
@@ -1586,6 +1589,22 @@ function queryDeviceTelemetry(devicePath) {
         updateVaultStatusUI(true, `Fingerprint: ${localSeedFp || "Active"}`);
       }
     });
+}
+
+function checkFirmwareVersionUpdates(currentVer) {
+  const banner = document.getElementById("fw-update-banner");
+  if (!banner) return;
+  const latestVer = "1.0.5";
+  const cleanCurrent = (currentVer || "1.0.0").replace(/^v/, "").trim();
+  if (cleanCurrent !== latestVer) {
+    banner.style.display = "flex";
+    const textEl = document.getElementById("fw-update-text");
+    if (textEl) {
+      textEl.textContent = `New OpenKey Firmware v${latestVer} is available (Current: v${cleanCurrent}). Upgrade seamlessly with KeeForge!`;
+    }
+  } else {
+    banner.style.display = "none";
+  }
 }
 
 function updateAAGUIDProfileUI(profile) {
