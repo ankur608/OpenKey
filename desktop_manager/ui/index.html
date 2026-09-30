@@ -44,6 +44,11 @@
           <span>KeyStore</span>
           <span class="badge-mini rk-pill">1,000</span>
         </button>
+        <a href="forge.html" class="nav-item" style="text-decoration:none; margin-top:6px; border:1px solid rgba(255,90,54,0.3); background:rgba(255,90,54,0.06);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          <span style="color:var(--accent-coral); font-weight:700;">OpenKey Forge</span>
+          <span class="badge-mini" style="background:var(--accent-coral); color:#fff;">Flash</span>
+        </a>
       </nav>
 
       <div class="sidebar-theme-toggle">
@@ -121,6 +126,10 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
               Connect OpenKey via Web Serial
             </button>
+            <a href="forge.html" class="btn btn-glass" style="text-decoration:none; display:inline-flex; align-items:center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              Flash New ESP32-S3 (Forge)
+            </a>
             <button id="btn-hero-scan" class="btn btn-glass">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Scan USB Ports
@@ -159,7 +168,11 @@
             <h1 class="hero-title">OpenKey Security Engine</h1>
             <p class="subtitle">Hardware telemetry, flash encryption state, and real-time defense posture.</p>
           </div>
-          <div class="header-actions">
+          <div class="header-actions" style="display:flex; gap:10px;">
+            <a href="forge.html" class="btn btn-primary" title="Launch OpenKey Forge Web Flasher & Onboarding Utility" style="text-decoration:none; display:inline-flex; align-items:center;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              ⚡ OpenKey Forge
+            </a>
             <button id="btn-wink" class="btn btn-glass" title="Toggle OpenKey LED to identify connected hardware">
               <span class="led-indicator"></span> Identify Key
             </button>
