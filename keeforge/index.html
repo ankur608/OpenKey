@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KeeForge — ESP32-S3 Hardware Onboarding & Web Flasher</title>
+  <link rel="stylesheet" href="keeforge.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="glow-sphere glow-sphere-1"></div>
+  <div class="glow-sphere glow-sphere-2"></div>
+
+  <div class="keeforge-container">
+    <!-- Top Navigation Bar -->
+    <header class="keeforge-header-bar">
+      <div class="brand-wrap">
+        <div class="brand-wordmark">
+          <span class="brand-kee">Kee</span><span class="brand-forge">Forge</span>
+        </div>
+        <span class="badge-keeforge">⚡ HARDWARE UTILITY</span>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px;">
+        <a href="../desktop_manager/ui/index.html" class="btn btn-glass btn-sm" title="Return to OpenKey Web Companion">
+          ← OpenKey Companion
+        </a>
+        <div class="theme-radios" style="background:rgba(0,0,0,0.25); padding:3px; border-radius:9999px; border:1px solid var(--glass-border); display:flex; gap:3px;">
+          <button id="btn-theme-dark" class="card-tab active" style="font-size:0.75rem; padding:4px 10px;">Dark</button>
+          <button id="btn-theme-light" class="card-tab" style="font-size:0.75rem; padding:4px 10px;">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero / Headline -->
+    <div class="mb-25">
+      <h1 class="hero-title">Zero-Install Hardware Onboarding & Flasher</h1>
+      <p class="subtitle">Turn off-the-shelf Waveshare ESP32-S3 boards into hardened OpenKey FIDO2 hardware tokens directly over Web Serial.</p>
+    </div>
+
+    <!-- STEP 1: CONNECT & SILICON FINGERPRINT -->
+    <div class="step-card">
+      <div class="step-header">
+        <div style="display:flex; align-items:center;">
+          <span class="step-number-badge">1</span>
+          <div>
+            <h3 style="margin:0;">Target Board Connection & Silicon Fingerprint</h3>
+            <p class="text-muted text-xs" style="margin:2px 0 0 0;">Connect Waveshare ESP32-S3 in ROM Bootloader mode or reboot an active OpenKey.</p>
+          </div>
+        </div>
+        <span class="badge badge-info" id="badge-board-state">Disconnected</span>
+      </div>
+
+      <div class="grid grid-2">
+        <div>
+          <p class="text-xs text-muted" style="margin-bottom:14px; line-height:1.6;">
+            <strong>First time setup:</strong> Hold the physical <strong>BOOT</strong> button on your Waveshare ESP32-S3 board while plugging the USB-C cable into your PC, then click <em>Connect Bootloader</em>.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="btn-connect-bootloader" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              Connect ESP32-S3 (Bootloader)
+            </button>
+            <button id="btn-reboot-to-bootloader" class="btn btn-glass" title="Dispatches Vendor Command 0x0A to enter bootloader without pressing buttons">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Reboot Active Key (Cmd 0x0A)
+            </button>
+          </div>
+        </div>
+
+        <!-- Silicon Hardware Identity Card (Method 2) -->
+        <div class="metric-tile" style="padding:16px;">
+          <span class="metric-label">SILICON UNIQUE HARDWARE IDENTITY (METHOD 2)</span>
+          <div style="margin-top:8px; display:flex; flex-direction:column; gap:5px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span class="text-xs text-muted">Chip Architecture:</span>
+              <strong id="disp-chip-model" class="mono text-xs">Waiting for connection...</strong>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span class="text-xs text-muted">Factory eFuse MAC:</span>
+              <span id="disp-efuse-mac" class="mono text-xs text-cyan">--:--:--:--:--:--</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span class="text-xs text-muted">Silicon Unique Serial:</span>
+              <span id="disp-unique-serial" class="badge badge-mini badge-cyan mono">OK-F2-7E64D054</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span class="text-xs text-muted">Flash Partitioning:</span>
+              <span id="disp-flash-size" class="mono text-xs">4MB Dual-Bank OTA Ready</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: FIRMWARE SELECTION (HEX / BINARY) -->
+    <div class="step-card">
+      <div class="step-header">
+        <div style="display:flex; align-items:center;">
+          <span class="step-number-badge">2</span>
+          <div>
+            <h3 style="margin:0;">Firmware Payload Selection</h3>
+            <p class="text-muted text-xs" style="margin:2px 0 0 0;">Load official OpenKey build or upload custom Intel HEX / Binary exported from Arduino/PlatformIO.</p>
+          </div>
+        </div>
+        <div class="card-tabs" id="firmware-source-tabs">
+          <button class="card-tab active" data-source="official">Official Build</button>
+          <button class="card-tab" data-source="custom">Custom HEX / BIN</button>
+        </div>
+      </div>
+
+      <!-- Tab A: Official Pre-Loaded Release -->
+      <div id="tab-source-official" class="tab-content-block">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:16px; background:rgba(255,255,255,0.02); border-radius:var(--radius-md); border:1px solid var(--glass-border);">
+          <div>
+            <strong>OpenKey Core Firmware v1.0.5</strong>
+            <div class="text-muted text-xs mt-5">
+              Dual CDC+HID composite stack, CTAP 2.1 UV passkey engine, and live NVS hardware enumeration.
+            </div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button id="btn-load-official-firmware" class="btn btn-secondary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Load OpenKey v1.0.5 Payload
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab B: Custom File Upload (Drag & Drop .hex / .bin) -->
+      <div id="tab-source-custom" class="tab-content-block" style="display:none;">
+        <div class="dropzone" id="hex-dropzone">
+          <input type="file" id="file-input-firmware" accept=".hex,.bin" style="display:none;" />
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--accent-coral); margin-bottom:10px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-weight:700; margin-bottom:4px;">Drag & Drop your .hex or .bin file here</div>
+          <div class="text-muted text-xs">Supports Intel HEX (`.hex`) and raw binary (`.bin`) from Arduino IDE or PlatformIO</div>
+        </div>
+      </div>
+
+      <!-- Firmware Inspection Card -->
+      <div id="firmware-inspect-card" class="mt-15" style="display:none; padding:16px; background:rgba(6, 182, 212, 0.04); border-radius:var(--radius-md); border:1px solid rgba(6, 182, 212, 0.2);">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+          <div>
+            <span class="badge badge-mini badge-cyan" id="disp-fw-type">Intel HEX</span>
+            <strong id="disp-fw-name" style="margin-left:8px;">firmware.ino.hex</strong>
+            <span class="text-muted text-xs" id="disp-fw-size" style="margin-left:8px;">(842 KB)</span>
+          </div>
+          <span class="badge badge-emerald" id="disp-fw-sig-badge">✓ Ed25519 Integrity OK</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px; font-size:0.75rem;">
+          <div>
+            <span class="text-muted">Target Flash Offset:</span>
+            <span class="mono" id="disp-fw-offset">0x00010000 (app0)</span>
+          </div>
+          <div>
+            <span class="text-muted">SHA-256 Checksum:</span>
+            <span class="mono text-xs" id="disp-fw-hash">calculating...</span>
+          </div>
+          <div>
+            <span class="text-muted">Decoded Segments:</span>
+            <span class="mono" id="disp-fw-segments">1 Block</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: HARDWARE PERSONALIZATION (OPTIONAL) -->
+    <div class="step-card">
+      <div class="step-header">
+        <div style="display:flex; align-items:center;">
+          <span class="step-number-badge">3</span>
+          <div>
+            <h3 style="margin:0;">USB Descriptor & Identity Personalization</h3>
+            <p class="text-muted text-xs" style="margin:2px 0 0 0;">Customize hardware VID, PID, and product strings before flashing.</p>
+          </div>
+        </div>
+        <span class="badge badge-emerald">Default SoloKeys Profile</span>
+      </div>
+
+      <div class="grid grid-3">
+        <div>
+          <label class="metric-label">Vendor ID (VID)</label>
+          <input type="text" id="cfg-vid" class="input-glass mt-5" value="0x1209" style="font-family:var(--font-mono);" />
+          <span class="text-muted text-xs">0x1209 (pid.codes Open Source)</span>
+        </div>
+        <div>
+          <label class="metric-label">Product ID (PID)</label>
+          <input type="text" id="cfg-pid" class="input-glass mt-5" value="0x5070" style="font-family:var(--font-mono);" />
+          <span class="text-muted text-xs">0x5070 (SoloKeys FIDO2)</span>
+        </div>
+        <div>
+          <label class="metric-label">Hardware Product Name</label>
+          <input type="text" id="cfg-product" class="input-glass mt-5" value="OpenKey FIDO2" />
+          <span class="text-muted text-xs">USB String Descriptor 2</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: FLASH & LIVE TELEMETRY CONSOLE -->
+    <div class="step-card">
+      <div class="step-header">
+        <div style="display:flex; align-items:center;">
+          <span class="step-number-badge">4</span>
+          <div>
+            <h3 style="margin:0;">Flash Execution & Progress</h3>
+            <p class="text-muted text-xs" style="margin:2px 0 0 0;">Streams binary packets over Web Serial into ESP32-S3 flash memory.</p>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:var(--text-muted); cursor:pointer;">
+            <input type="checkbox" id="chk-audio-chime" checked />
+            <span>Audio Chime</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="gap:24px; align-items:center;">
+        <!-- Circular Progress Display -->
+        <div class="progress-radial-wrap">
+          <div style="position:relative; width:130px; height:130px; display:flex; align-items:center; justify-content:center;">
+            <svg class="progress-circle-svg" viewBox="0 0 130 130">
+              <circle class="progress-circle-bg" cx="65" cy="65" r="54" fill="none" stroke-width="8"></circle>
+              <circle class="progress-circle-bar" id="forge-progress-bar" cx="65" cy="65" r="54" fill="none" stroke-width="8" stroke-dasharray="339.29" stroke-dashoffset="339.29" stroke-linecap="round"></circle>
+            </svg>
+            <div class="progress-percent-label" id="forge-progress-text">0%</div>
+          </div>
+          <span class="text-xs text-muted mt-10" id="forge-status-label">Ready to flash</span>
+
+          <button id="btn-start-flash" class="btn btn-primary btn-lg mt-15" disabled style="width:100%; max-width:240px;">
+            ⚡ Flash OpenKey Now
+          </button>
+        </div>
+
+        <!-- Real-Time Logging Console -->
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span class="metric-label">ROM BOOTLOADER CONSOLE</span>
+            <button id="btn-clear-console" class="btn btn-glass btn-sm" style="font-size:0.7rem; padding:2px 8px;">Clear</button>
+          </div>
+          <div class="terminal-window" id="forge-terminal">
+            <div class="terminal-line info">[KeeForge] Utility ready. Connect Waveshare ESP32-S3 to begin.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- esptool-js official bundle -->
+  <script src="esptool-bundle.js"></script>
+  <!-- KeeForge Controller Logic -->
+  <script src="keeforge.js"></script>
+</body>
+</html>

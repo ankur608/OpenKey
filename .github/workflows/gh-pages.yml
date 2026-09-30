@@ -31,6 +31,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -r desktop_manager/ui/* _site/
+          cp -r keeforge _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

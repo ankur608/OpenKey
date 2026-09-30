@@ -43,7 +43,7 @@ Present version supports the **ESP32-S3** platform, more to be added soon..
 ## 📦 Releases & Downloads
 
 #### 🌐 Live Web Companion: [https://ankur608.github.io/OpenKey](https://ankur608.github.io/OpenKey)
-#### ⚡ OpenKey Forge (Web Flasher): [https://ankur608.github.io/OpenKey/forge.html](https://ankur608.github.io/OpenKey/forge.html)
+#### ⚡ KeeForge (Web Flasher): [https://ankur608.github.io/OpenKey/keeforge/](https://ankur608.github.io/OpenKey/keeforge/)
 
 Precompiled native packages and standalone binaries are available for **Windows**, **macOS**, and **Linux** under [GitHub Releases](https://github.com/ankur608/OpenKey/releases).
 
